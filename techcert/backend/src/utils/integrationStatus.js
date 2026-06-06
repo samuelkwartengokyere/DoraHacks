@@ -40,7 +40,10 @@ function getEnvConfig() {
     liveExecutionEnabled,
     executionMode: twakService.getMode(),
     bnbChainConfigured: bnbChainService.isConfigured(),
-    agentWalletAddress: bnbChainService.wallet?.address || null,
+    agentWalletAddress:
+      process.env.AGENT_WALLET_ADDRESS?.trim() ||
+      bnbChainService.wallet?.address ||
+      null,
     network: process.env.BNB_TESTNET_RPC ? "BNB Chain Testnet" : null,
     chainId: 97,
   };
@@ -193,6 +196,7 @@ async function getIntegrationStatus({ deep = false } = {}) {
     },
     agentWallet: {
       configured: Boolean(config.agentWalletAddress),
+      address: config.agentWalletAddress,
       addressMasked: maskAddress(config.agentWalletAddress),
     },
   };

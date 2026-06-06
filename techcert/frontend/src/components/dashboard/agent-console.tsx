@@ -7,7 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Bot, ChartCandlestick, Play, Plus, RefreshCw, Square, XCircle, Zap } from "lucide-react";
+import {
+  Bell,
+  Bot,
+  ChartCandlestick,
+  Check,
+  Copy,
+  Play,
+  Plus,
+  RefreshCw,
+  Square,
+  XCircle,
+  Zap,
+} from "lucide-react";
 import { api, type Agent, type Trade, type TradingSignal } from "@/lib/api";
 import { SignalDurationPanel } from "@/components/dashboard/signal-duration-panel";
 import { isOpenTrade } from "@/lib/trade-utils";
@@ -31,6 +43,48 @@ function actionBadgeVariant(action: string) {
   if (action === "BUY") return "success" as const;
   if (action === "SELL") return "destructive" as const;
   return "outline" as const;
+}
+
+function CopyableAgentAddress({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/50">
+      <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Agent address</span>
+      <code className="min-w-0 flex-1 truncate font-mono text-xs text-gray-900 dark:text-slate-100">
+        {address}
+      </code>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+        onClick={handleCopy}
+      >
+        {copied ? (
+          <>
+            <Check className="h-3.5 w-3.5" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Copy className="h-3.5 w-3.5" />
+            Copy
+          </>
+        )}
+      </Button>
+    </div>
+  );
 }
 
 interface AgentTabPanelProps {
@@ -219,6 +273,7 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
   const [error, setError] = useState("");
   const [lastResult, setLastResult] = useState("");
   const [liveSignal, setLiveSignal] = useState<TradingSignal | null>(null);
+  const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(CREATE_TAB);
 
   const hasMonitoredAgent = agents.some((agent) => agent.isAutomated);
@@ -247,6 +302,13 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
   useEffect(() => {
     api.getPublicSignal("BNB").then((res) => setLiveSignal(res.signal)).catch(() => {});
   }, [agents]);
+
+  useEffect(() => {
+    api
+      .getPlatformStatus(false)
+      .then((status) => setAgentAddress(status.integrations.agentWallet?.address ?? null))
+      .catch(() => {});
+  }, []);
 
   async function handleCreate() {
     setLoading(true);
@@ -384,6 +446,14 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
       {lastResult && (
         <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
           {lastResult}
+        </p>
+      )}
+
+      {agentAddress ? (
+        <CopyableAgentAddress address={agentAddress} />
+      ) : (
+        <p className="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-slate-700 dark:text-slate-400">
+          Agent address not configured — set PRIVATE_KEY or AGENT_WALLET_ADDRESS in backend/.env
         </p>
       )}
 

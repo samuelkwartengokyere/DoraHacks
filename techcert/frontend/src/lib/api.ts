@@ -35,6 +35,7 @@ export interface PlatformStatus {
     };
     agentWallet?: {
       configured: boolean;
+      address: string | null;
       addressMasked: string | null;
       balanceBnb?: string;
     };
