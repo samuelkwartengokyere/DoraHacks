@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, Zap } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { cn, navigateToSection } from "@/lib/utils";
 
@@ -99,7 +101,7 @@ export function HeroSection() {
             key={`badge-${activeIndex}`}
             className="motion-safe:animate-fade-in-down mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-amber-100 backdrop-blur-sm sm:mb-6 sm:px-4 sm:text-sm"
           >
-            <Zap className="h-4 w-4" />
+            <LogoMark size={16} className="rounded-md" />
             {slide.badge}
           </div>
 
@@ -128,13 +130,23 @@ export function HeroSection() {
               Explore the Stack <ArrowRight className="h-4 w-4" />
             </Button>
             <Button
-              type="button"
+              asChild
               size="lg"
               variant="outline"
               className="w-full border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+            >
+              <Link href="/admin" target="_blank" rel="noopener noreferrer">
+                Open Agent Console
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="ghost"
+              className="w-full text-white/90 hover:bg-white/10 hover:text-white sm:w-auto"
               onClick={() => navigateToSection("how-it-works")}
             >
-              How the Stack Works
+              How It Works
             </Button>
           </div>
         </div>

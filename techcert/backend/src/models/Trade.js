@@ -14,9 +14,11 @@ const tradeSchema = new mongoose.Schema(
     txHash: { type: String },
     status: {
       type: String,
-      enum: ["completed", "failed", "skipped"],
+      enum: ["open", "completed", "cancelled", "failed", "skipped", "advisory"],
       default: "completed",
     },
+    cancelledAt: { type: Date },
+    cancelReason: { type: String },
     executionDetail: { type: String },
   },
   { timestamps: true }

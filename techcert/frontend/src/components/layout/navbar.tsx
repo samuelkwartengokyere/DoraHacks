@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn, navigateToSection, sectionIdFromHashHref } from "@/lib/utils";
 
@@ -53,11 +54,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 sm:h-9 sm:w-9">
-            <Zap className="h-4 w-4 text-white sm:h-5 sm:w-5" />
-          </div>
-          <span className="text-lg font-bold text-gray-900 dark:text-slate-100 sm:text-xl">SignalForge AI</span>
+        <Link href="/" className="transition-opacity hover:opacity-80">
+          <Logo size="sm" textClassName="text-lg sm:text-xl" priority />
         </Link>
 
         <div className="hidden items-center gap-4 md:flex lg:gap-6">
@@ -76,6 +74,14 @@ export function Navbar() {
               {link.label}
             </button>
           ))}
+          <Link
+            href="/admin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-600"
+          >
+            Agent Console
+          </Link>
           <ThemeToggle />
         </div>
 
@@ -116,6 +122,15 @@ export function Navbar() {
               {link.label}
             </button>
           ))}
+          <Link
+            href="/admin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-lg bg-amber-500 px-3 py-2.5 text-center text-sm font-medium text-white hover:bg-amber-600"
+            onClick={() => setOpen(false)}
+          >
+            Agent Console
+          </Link>
         </div>
       </div>
     </header>

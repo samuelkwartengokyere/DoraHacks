@@ -9,7 +9,7 @@ import type { Agent, Trade } from "@/lib/api";
 interface AgentOverviewProps {
   agents: Agent[];
   trades: Trade[];
-  onNavigate: (tab: "agent" | "strategies" | "trades" | "settings") => void;
+  onNavigate: (tab: "agent" | "strategies" | "chart" | "trades" | "settings") => void;
 }
 
 export function AgentOverview({ agents, trades, onNavigate }: AgentOverviewProps) {
@@ -69,6 +69,9 @@ export function AgentOverview({ agents, trades, onNavigate }: AgentOverviewProps
               <Button onClick={() => onNavigate("agent")}>Configure Agent</Button>
               <Button variant="outline" onClick={() => onNavigate("strategies")}>
                 Run Strategy Skill
+              </Button>
+              <Button variant="outline" onClick={() => onNavigate("chart")}>
+                Open Chart
               </Button>
             </div>
           </CardContent>

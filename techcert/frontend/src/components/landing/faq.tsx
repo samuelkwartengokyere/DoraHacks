@@ -15,8 +15,8 @@ const faqs = [
     a: "Track 1 — Autonomous Agents: CMC signal → agent decision → TWAK execution. Track 2 — Strategy Skills: CMC skill pipeline with backtestable MA crossover on BNB hourly data.",
   },
   {
-    q: "Do I need testnet BNB to demo?",
-    a: "No. Paper mode simulates execution without tBNB. Add a funded BSC testnet wallet and set AGENT_EXECUTION_MODE=live when you are ready for on-chain swaps.",
+    q: "How do I manage my agents?",
+    a: "Click Agent Console on the website (or go to /admin). Create a free account, sign in, then create and run agents, backtests, and view your personal trade log.",
   },
   {
     q: "What is the CoinMarketCap integration?",

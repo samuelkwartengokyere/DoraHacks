@@ -74,33 +74,89 @@ class CmcService {
   }
 
   buildSignal(quote, globalMetrics) {
+    const change1h = quote.percentChange1h ?? 0;
     const change24h = quote.percentChange24h ?? 0;
     const change7d = quote.percentChange7d ?? 0;
     const volumeRatio = quote.volume24hUsd / Math.max(quote.marketCapUsd, 1);
+    const globalChange = globalMetrics.marketCapChange24h ?? 0;
+
+    let score = 0;
+    const reasons = [];
+
+    if (change1h > 0.2) {
+      score += 0.5;
+      reasons.push(`Short-term momentum +${change1h.toFixed(2)}% (1h)`);
+    } else if (change1h < -0.2) {
+      score -= 0.5;
+      reasons.push(`Short-term weakness ${change1h.toFixed(2)}% (1h)`);
+    }
+
+    if (change24h > 1.5) {
+      score += 1.5;
+      reasons.push(`Strong 24h gain +${change24h.toFixed(2)}%`);
+    } else if (change24h > 0.25) {
+      score += 0.75;
+      reasons.push(`Positive 24h trend +${change24h.toFixed(2)}%`);
+    } else if (change24h < -1.5) {
+      score -= 1.5;
+      reasons.push(`Strong 24h decline ${change24h.toFixed(2)}%`);
+    } else if (change24h < -0.25) {
+      score -= 0.75;
+      reasons.push(`Negative 24h trend ${change24h.toFixed(2)}%`);
+    }
+
+    if (change7d > 3) {
+      score += 1.25;
+      reasons.push(`7d uptrend +${change7d.toFixed(1)}%`);
+    } else if (change7d > 0) {
+      score += 0.5;
+      reasons.push(`7d trend positive +${change7d.toFixed(1)}%`);
+    } else if (change7d < -8) {
+      score -= 1.5;
+      reasons.push(`Extended 7d weakness ${change7d.toFixed(1)}%`);
+    } else if (change7d < 0) {
+      score -= 0.75;
+      reasons.push(`7d trend negative ${change7d.toFixed(1)}%`);
+    }
+
+    if (globalChange > 0.4) {
+      score += 0.5;
+      reasons.push("Global market cap rising");
+    } else if (globalChange < -0.4) {
+      score -= 0.5;
+      reasons.push("Global market cap falling");
+    }
+
+    if (volumeRatio > 0.02 && score > 0) {
+      score += 0.25;
+      reasons.push("Volume supports bullish read");
+    } else if (volumeRatio > 0.02 && score < 0) {
+      score -= 0.25;
+      reasons.push("Volume supports bearish read");
+    }
 
     let regime = "neutral";
-    if (change24h > 3 && change7d > 0) regime = "bullish";
-    else if (change24h < -3 && change7d < 0) regime = "bearish";
+    if (score >= 1.25) regime = "bullish";
+    else if (score <= -1.25) regime = "bearish";
     else if (Math.abs(change24h) < 1) regime = "ranging";
 
     let action = "HOLD";
     let confidence = 0.5;
-    const reasons = [];
 
-    if (regime === "bullish" && volumeRatio > 0.02) {
+    if (score >= 0.9) {
       action = "BUY";
-      confidence = 0.72;
-      reasons.push("Positive 24h/7d momentum with healthy volume");
-    } else if (regime === "bearish") {
+      confidence = Math.min(0.88, 0.58 + score * 0.12);
+    } else if (score <= -0.9) {
       action = "SELL";
-      confidence = 0.68;
-      reasons.push("Bearish regime — risk-off signal from CMC data");
-    } else if (change24h > 1.5 && globalMetrics.marketCapChange24h > 0) {
+      confidence = Math.min(0.88, 0.58 + Math.abs(score) * 0.12);
+    } else if (score >= 0.45) {
       action = "BUY";
-      confidence = 0.6;
-      reasons.push("BNB outperforming while global market cap rises");
+      confidence = 0.62;
+    } else if (score <= -0.45) {
+      action = "SELL";
+      confidence = 0.62;
     } else {
-      reasons.push("No strong edge — wait for clearer CMC signal");
+      reasons.push("Momentum mixed — no clear directional edge");
     }
 
     return {
@@ -111,14 +167,72 @@ class CmcService {
       reasons,
       metrics: {
         priceUsd: quote.priceUsd,
+        percentChange1h: change1h,
         percentChange24h: change24h,
         percentChange7d: change7d,
         volume24hUsd: quote.volume24hUsd,
         marketCapUsd: quote.marketCapUsd,
-        globalMarketCapChange24h: globalMetrics.marketCapChange24h,
+        globalMarketCapChange24h: globalChange,
+        momentumScore: Number(score.toFixed(2)),
       },
       source: quote.mock ? "cmc-mock" : "cmc-agent-hub",
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  mergeSignals(cmcSignal, maSignal) {
+    const weight = { BUY: 1, HOLD: 0, SELL: -1 };
+    const cmcPart = weight[cmcSignal.action] * cmcSignal.confidence * 0.55;
+    const maPart = weight[maSignal.action] * maSignal.confidence * 0.45;
+    const composite = cmcPart + maPart;
+
+    let action = "HOLD";
+    let confidence = 0.5;
+    const reasons = [...cmcSignal.reasons];
+
+    if (maSignal.reasons.length > 0) {
+      reasons.push(...maSignal.reasons);
+    }
+
+    if (composite >= 0.32) {
+      action = "BUY";
+      confidence = Math.min(0.9, 0.6 + composite * 0.45);
+    } else if (composite <= -0.32) {
+      action = "SELL";
+      confidence = Math.min(0.9, 0.6 + Math.abs(composite) * 0.45);
+    } else if (cmcSignal.action !== "HOLD") {
+      action = cmcSignal.action;
+      confidence = cmcSignal.confidence;
+    } else if (maSignal.action !== "HOLD") {
+      action = maSignal.action;
+      confidence = maSignal.confidence;
+    } else {
+      reasons.push("CMC + MA crossover both neutral");
+    }
+
+    if (cmcSignal.action === maSignal.action && cmcSignal.action !== "HOLD") {
+      confidence = Math.min(0.92, confidence + 0.08);
+      reasons.push(`CMC and MA agree on ${cmcSignal.action}`);
+    }
+
+    const sources = [cmcSignal.source];
+    if (maSignal.action !== "HOLD") {
+      sources.push("ma-crossover");
+    }
+
+    return {
+      ...cmcSignal,
+      action,
+      confidence: Number(confidence.toFixed(2)),
+      reasons: [...new Set(reasons)],
+      source: sources.join("+"),
+      technical: maSignal.metrics,
+      metrics: {
+        ...cmcSignal.metrics,
+        ma9: maSignal.metrics?.ma9,
+        ma21: maSignal.metrics?.ma21,
+        compositeScore: Number(composite.toFixed(3)),
+      },
     };
   }
 
@@ -127,7 +241,18 @@ class CmcService {
       this.getQuote(symbol),
       this.getGlobalMetrics(),
     ]);
-    return this.buildSignal(quote, globalMetrics);
+    const cmcSignal = this.buildSignal(quote, globalMetrics);
+
+    try {
+      const strategyService = require("./strategyService");
+      const maSignal = await strategyService.getMaCrossoverSignal(symbol);
+      const merged = this.mergeSignals(cmcSignal, maSignal);
+      const duration = await strategyService.getSignalDuration(symbol, merged.action);
+      return { ...merged, duration };
+    } catch (error) {
+      console.warn("MA crossover signal unavailable:", error.message);
+      return cmcSignal;
+    }
   }
 
   normalizeQuote(symbol, entry, quote, mock) {

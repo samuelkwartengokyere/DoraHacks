@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "SignalForge AI — BNB Hack Trading Agent",
   description:
     "Autonomous AI trading agent for BNB Hack: AI Trading Agent Edition. CMC Agent Hub + Trust Wallet Agent Kit + BNB Chain.",
+  icons: {
+    icon: "/signalforge-logo.png",
+    apple: "/signalforge-logo.png",
+  },
 };
 
 export const viewport = {

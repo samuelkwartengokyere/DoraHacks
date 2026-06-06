@@ -2,13 +2,18 @@ const express = require("express");
 const auth = require("../middleware/auth");
 const StrategyRun = require("../models/StrategyRun");
 const strategyService = require("../services/strategyService");
+const strategySchedulerService = require("../services/strategySchedulerService");
 
 const router = express.Router();
 
-router.get("/", auth, async (_req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
-    const runs = await StrategyRun.find().sort({ createdAt: -1 }).limit(50);
-    res.json({ success: true, runs });
+    await strategySchedulerService.ensureMonitoring(req.admin.id);
+    const [runs, schedule] = await Promise.all([
+      StrategyRun.find({ ownerId: req.admin.id }).sort({ createdAt: -1 }).limit(50),
+      strategySchedulerService.getSchedule(req.admin.id),
+    ]);
+    res.json({ success: true, runs, schedule });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -24,24 +29,40 @@ router.post("/backtest", auth, async (req, res) => {
       initialUsd = 1000,
     } = req.body;
 
-    const skillOutput = await strategyService.runCmcSkillBacktest({
+    const { run, skillOutput } = await strategyService.runAndSave(req.admin.id, {
       symbol,
+      name,
       fastPeriod,
       slowPeriod,
       initialUsd,
     });
 
-    const run = await StrategyRun.create({
-      name,
-      symbol: symbol.toUpperCase(),
-      strategyType: skillOutput.skill,
-      params: { fastPeriod, slowPeriod, initialUsd },
-      skillOutput,
-      pnlPercent: skillOutput.backtest.pnlPercent,
-      tradeCount: skillOutput.backtest.tradeCount,
-    });
-
     res.status(201).json({ success: true, run, skillOutput });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/automation/start", auth, async (req, res) => {
+  try {
+    const pollSeconds = Number(req.body.pollSeconds || process.env.AGENT_SIGNAL_POLL_SECONDS || 30);
+    const backtestIntervalMinutes = Number(
+      req.body.backtestIntervalMinutes || req.body.intervalMinutes || 10
+    );
+    const result = await strategySchedulerService.startAutomation(req.admin.id, req.body, {
+      pollSeconds,
+      backtestIntervalMinutes,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/automation/stop", auth, async (req, res) => {
+  try {
+    const schedule = await strategySchedulerService.stopAutomation(req.admin.id);
+    res.json({ success: true, schedule });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }

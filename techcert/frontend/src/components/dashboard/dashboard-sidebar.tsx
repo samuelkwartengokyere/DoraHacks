@@ -5,18 +5,21 @@ import {
   LayoutDashboard,
   Bot,
   LineChart,
+  ChartCandlestick,
   Activity,
   LogOut,
   ExternalLink,
   Menu,
   X,
   Settings,
-  Zap,
 } from "lucide-react";
+import { LogoMark } from "@/components/brand/logo";
+import { LiveSignalBadge } from "@/components/dashboard/live-signal-badge";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
+import { api, type TradingSignal } from "@/lib/api";
 
-export type DashboardTab = "overview" | "agent" | "strategies" | "trades" | "settings";
+export type DashboardTab = "overview" | "agent" | "strategies" | "chart" | "trades" | "settings";
 
 interface DashboardSidebarProps {
   activeTab: DashboardTab;
@@ -29,8 +32,8 @@ const mainNav: { id: DashboardTab; label: string; icon: typeof LayoutDashboard }
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "agent", label: "Trading Agent", icon: Bot },
   { id: "strategies", label: "Strategy Skills", icon: LineChart },
+  { id: "chart", label: "Chart", icon: ChartCandlestick },
   { id: "trades", label: "Trade Log", icon: Activity },
-  { id: "settings", label: "Integrations", icon: Settings },
 ];
 
 export function DashboardSidebar({
@@ -40,7 +43,7 @@ export function DashboardSidebar({
   tradeCount,
 }: DashboardSidebarProps) {
   return (
-    <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-slate-800/80 bg-slate-950 lg:flex">
+    <aside className="hidden h-full w-64 shrink-0 flex-col self-stretch border-r border-slate-800/80 bg-slate-950 lg:flex">
       <SidebarContent
         activeTab={activeTab}
         onTabChange={onTabChange}
@@ -103,13 +106,14 @@ function SidebarContent({
   onLogout,
   tradeCount,
 }: DashboardSidebarProps) {
+  const user = api.getUser();
+  const initial = (user?.name?.[0] || user?.email?.[0] || "U").toUpperCase();
+
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-slate-800 px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-orange-900/40">
-            <Zap className="h-5 w-5 text-white" />
-          </div>
+          <LogoMark size="md" />
           <div>
             <p className="font-bold text-white">SignalForge AI</p>
             <p className="text-xs text-slate-500">BNB Hack Agent Console</p>
@@ -132,16 +136,27 @@ function SidebarContent({
             />
           ))}
         </nav>
+
+        <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          Settings
+        </p>
+        <nav className="space-y-0.5">
+          <SidebarNavItem
+            item={{ id: "settings", label: "Settings", icon: Settings }}
+            active={activeTab === "settings"}
+            onClick={() => onTabChange("settings")}
+          />
+        </nav>
       </div>
 
       <div className="mt-auto border-t border-slate-800 p-4">
         <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-900 px-3 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-600 text-sm font-bold text-white">
-            A
+            {initial}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-white">Operator</p>
-            <p className="truncate text-xs text-slate-500">CMC + TWAK + BSC</p>
+            <p className="truncate text-sm font-medium text-white">{user?.name || "Account"}</p>
+            <p className="truncate text-xs text-slate-500">{user?.email || "Signed in"}</p>
           </div>
         </div>
         <div className="space-y-0.5">
@@ -208,38 +223,45 @@ export function DashboardTopBar({
   onTabChange,
   onMenuOpen,
   tradeCount,
+  liveSignal,
+  monitoring,
 }: {
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
   onMenuOpen: () => void;
   tradeCount: number;
+  liveSignal?: TradingSignal | null;
+  monitoring?: boolean;
 }) {
   const titles: Record<DashboardTab, string> = {
     overview: "Agent Overview",
     agent: "Autonomous Trading Agent",
     strategies: "CMC Strategy Skills",
+    chart: "Market Chart",
     trades: "Trade Log",
-    settings: "Hackathon Integrations",
+    settings: "Settings",
   };
 
   const descriptions: Record<DashboardTab, string> = {
     overview: "Monitor CMC signals, agents, and BSC execution status",
-    agent: "Track 1 — read market data, decide, execute via TWAK",
+    agent: "Track 1 — live BUY / SELL / HOLD signals, execute when you choose",
     strategies: "Track 2 — backtestable skills powered by CoinMarketCap",
+    chart: "Broker-style candlesticks, volume, and trade signal overlays",
     trades: "On-chain and paper trades from your agents",
-    settings: "CMC Agent Hub, Trust Wallet Agent Kit, BNB Chain",
+    settings: "General configuration, integrations, and hackathon stack status",
   };
 
   const tabItems: { id: DashboardTab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "agent", label: "Agent" },
     { id: "strategies", label: "Strategies" },
+    { id: "chart", label: "Chart" },
     { id: "trades", label: "Trades" },
     { id: "settings", label: "Settings" },
   ];
 
   return (
-    <header className="sticky top-0 z-10 border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <header className="z-10 shrink-0 border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-center gap-4 px-4 py-4 sm:px-6">
         <button
           onClick={onMenuOpen}
@@ -253,6 +275,7 @@ export function DashboardTopBar({
           <p className="hidden truncate text-sm text-gray-500 dark:text-slate-400 sm:block">{descriptions[activeTab]}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <LiveSignalBadge signal={liveSignal ?? null} monitoring={monitoring} />
           <ThemeToggle />
           <span className="hidden rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300 sm:inline-flex sm:px-3">
             BNB Hack

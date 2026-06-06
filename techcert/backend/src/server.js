@@ -3,12 +3,16 @@ const express = require("express");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const seedAdmin = require("./utils/seedAdmin");
+const migrateLegacyOwnership = require("./utils/migrateLegacyOwnership");
+const agentSchedulerService = require("./services/agentSchedulerService");
+const strategySchedulerService = require("./services/strategySchedulerService");
 
 const authRoutes = require("./routes/auth");
 const statusRoutes = require("./routes/status");
 const agentRoutes = require("./routes/agents");
 const tradeRoutes = require("./routes/trades");
 const strategyRoutes = require("./routes/strategies");
+const marketRoutes = require("./routes/market");
 const { getIntegrationStatus } = require("./utils/integrationStatus");
 
 const app = express();
@@ -38,6 +42,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/trades", tradeRoutes);
 app.use("/api/strategies", strategyRoutes);
+app.use("/api/market", marketRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err.stack);
@@ -50,6 +55,9 @@ app.use((err, _req, res, _next) => {
 async function start() {
   await connectDB();
   await seedAdmin();
+  await migrateLegacyOwnership();
+  await agentSchedulerService.restoreAutomatedAgents();
+  await strategySchedulerService.restoreAutomatedSchedules();
 
   app.listen(PORT, async () => {
     console.log(`SignalForge AI API running on port ${PORT}`);

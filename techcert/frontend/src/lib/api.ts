@@ -1,5 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 const TOKEN_KEY = "signalforge_token";
+const USER_KEY = "signalforge_user";
 const LEGACY_TOKEN_KEY = "techcert_token";
 
 export interface PlatformStatus {
@@ -46,6 +47,23 @@ export interface PlatformStatus {
   timestamp: string;
 }
 
+export interface SignalDuration {
+  activeSince?: string | null;
+  activeDurationMs?: number | null;
+  activeDurationLabel?: string | null;
+  typicalHoldMs?: number | null;
+  typicalHoldLabel?: string | null;
+  remainingMs?: number | null;
+  remainingLabel?: string | null;
+  suggestedExitAt?: string | null;
+  timeframe?: string;
+  samples?: number;
+  advice?: string;
+  summary?: string;
+  beginnerGuide?: string;
+  progressPercent?: number | null;
+}
+
 export interface TradingSignal {
   symbol: string;
   action: "BUY" | "SELL" | "HOLD";
@@ -55,6 +73,7 @@ export interface TradingSignal {
   metrics: Record<string, number>;
   source: string;
   generatedAt: string;
+  duration?: SignalDuration;
 }
 
 export interface Agent {
@@ -65,6 +84,10 @@ export interface Agent {
   maxTradeUsd: number;
   minConfidence: number;
   status: string;
+  isAutomated?: boolean;
+  runIntervalMinutes?: number;
+  signalPollSeconds?: number;
+  automatedStartedAt?: string;
   totalTrades: number;
   lastRunAt?: string;
   lastSignal?: TradingSignal;
@@ -89,6 +112,25 @@ export interface Trade {
   createdAt: string;
 }
 
+export interface StrategySchedule {
+  _id: string;
+  isAutomated: boolean;
+  runIntervalMinutes: number;
+  signalPollSeconds?: number;
+  backtestIntervalMinutes?: number;
+  automatedStartedAt?: string;
+  lastRunAt?: string;
+  lastBacktestAt?: string;
+  lastSignal?: TradingSignal;
+  params: {
+    symbol: string;
+    name: string;
+    initialUsd: number;
+    fastPeriod: number;
+    slowPeriod: number;
+  };
+}
+
 export interface StrategyRun {
   _id: string;
   name: string;
@@ -98,6 +140,7 @@ export interface StrategyRun {
   skillOutput: {
     skill: string;
     track: string;
+    symbol?: string;
     cmcSignal: TradingSignal;
     recommendation: { action: string; confidence: number; rationale: string; backtestAligned: boolean };
     backtest: {
@@ -106,11 +149,29 @@ export interface StrategyRun {
       finalEquityUsd: number;
       tradeCount: number;
       winRate: number;
+      trades?: Array<{ type: string; price: number; time: number }>;
+      chartSeries?: Array<{
+        time: number;
+        open?: number;
+        high?: number;
+        low?: number;
+        close?: number;
+        volume?: number;
+        price: number;
+        fastMa: number | null;
+        slowMa: number | null;
+      }>;
     };
   };
   pnlPercent: number;
   tradeCount: number;
   createdAt: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
 }
 
 class ApiClient {
@@ -125,7 +186,29 @@ class ApiClient {
       } else {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(LEGACY_TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
       }
+    }
+  }
+
+  setUser(user: AuthUser | null) {
+    if (typeof window !== "undefined") {
+      if (user) {
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+      } else {
+        localStorage.removeItem(USER_KEY);
+      }
+    }
+  }
+
+  getUser(): AuthUser | null {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as AuthUser;
+    } catch {
+      return null;
     }
   }
 
@@ -159,18 +242,35 @@ class ApiClient {
     const data = await this.request<{
       success: boolean;
       token: string;
-      admin: { id: string; email: string; name: string };
+      admin: AuthUser;
     }>("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
     this.setToken(data.token);
+    this.setUser(data.admin);
+    return data;
+  }
+
+  async register(name: string, email: string, password: string) {
+    const data = await this.request<{
+      success: boolean;
+      token: string;
+      admin: AuthUser;
+    }>("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() || undefined, email, password }),
+    });
+    this.setToken(data.token);
+    this.setUser(data.admin);
     return data;
   }
 
   logout() {
     this.setToken(null);
+    this.setUser(null);
   }
 
   async getPlatformStatus(deep = true) {
@@ -182,6 +282,16 @@ class ApiClient {
 
   async getAgents() {
     return this.request<{ success: boolean; agents: Agent[] }>("/agents");
+  }
+
+  async getLiveStatus() {
+    return this.request<{
+      success: boolean;
+      agents: Agent[];
+      schedule: StrategySchedule | null;
+      marketSignal: TradingSignal;
+      serverTime: string;
+    }>("/agents/live-status");
   }
 
   async createAgent(payload: {
@@ -207,12 +317,92 @@ class ApiClient {
     }>(`/agents/${agentId}/run`, { method: "POST" });
   }
 
+  async adviseAgent(agentId: string) {
+    return this.request<{
+      success: boolean;
+      agent: Agent;
+      signal: TradingSignal;
+      trade: Trade | null;
+      logged: boolean;
+    }>(`/agents/${agentId}/advise`, { method: "POST" });
+  }
+
+  async startAgentAutomation(agentId: string, pollSeconds = 30) {
+    return this.request<{
+      success: boolean;
+      agent: Agent;
+      alreadyRunning?: boolean;
+    }>(`/agents/${agentId}/automation/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pollSeconds }),
+    });
+  }
+
+  async stopAgentAutomation(agentId: string) {
+    return this.request<{ success: boolean; agent: Agent }>(
+      `/agents/${agentId}/automation/stop`,
+      { method: "POST" }
+    );
+  }
+
   async getTrades() {
     return this.request<{ success: boolean; trades: Trade[] }>("/trades");
   }
 
+  async deleteTrades(ids: string[]) {
+    return this.request<{ success: boolean; deletedCount: number }>("/trades", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async cancelTrade(tradeId: string) {
+    return this.request<{ success: boolean; trade: Trade }>(`/trades/${tradeId}/cancel`, {
+      method: "POST",
+    });
+  }
+
+  async deleteAllTrades() {
+    return this.request<{ success: boolean; deletedCount: number }>("/trades", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+  }
+
   async getStrategyRuns() {
-    return this.request<{ success: boolean; runs: StrategyRun[] }>("/strategies");
+    return this.request<{ success: boolean; runs: StrategyRun[]; schedule: StrategySchedule | null }>(
+      "/strategies"
+    );
+  }
+
+  async startStrategyAutomation(payload: {
+    symbol?: string;
+    name?: string;
+    initialUsd?: number;
+    fastPeriod?: number;
+    slowPeriod?: number;
+    pollSeconds?: number;
+    backtestIntervalMinutes?: number;
+    intervalMinutes?: number;
+  }) {
+    return this.request<{ success: boolean; schedule: StrategySchedule; alreadyRunning?: boolean }>(
+      "/strategies/automation/start",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  async stopStrategyAutomation() {
+    return this.request<{ success: boolean; schedule: StrategySchedule }>(
+      "/strategies/automation/stop",
+      { method: "POST" }
+    );
   }
 
   async runStrategyBacktest(payload: {
@@ -235,6 +425,32 @@ class ApiClient {
   async getPublicSignal(symbol = "BNB") {
     return this.request<{ success: boolean; signal: TradingSignal }>(`/agents/signals/${symbol}`);
   }
+
+  async getMarketCandles(symbol = "BNB", limit = 168, interval = "1h") {
+    const params = new URLSearchParams({ symbol, limit: String(limit), interval });
+    return this.request<{
+      success: boolean;
+      symbol: string;
+      interval: string;
+      candles: Array<{
+        time: number;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+      }>;
+    }>(`/market/candles?${params}`);
+  }
 }
 
 export const api = new ApiClient();
+
+export async function fetchMarketCandles(
+  symbol = "BNB",
+  limit = 168,
+  interval = "1h",
+) {
+  const data = await api.getMarketCandles(symbol, limit, interval);
+  return data.candles;
+}

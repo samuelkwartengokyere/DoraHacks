@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Zap, Mail, Code2 } from "lucide-react";
+import { Mail, Code2 } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 
 export function Footer() {
   return (
@@ -7,11 +8,8 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 text-center sm:grid-cols-2 sm:text-left md:grid-cols-4">
           <div className="sm:col-span-2">
-            <div className="flex items-center justify-center gap-2 sm:justify-start">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500">
-                <Zap className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-lg font-bold text-gray-900 dark:text-slate-100">SignalForge AI</span>
+            <div className="flex justify-center sm:justify-start">
+              <Logo size="sm" />
             </div>
             <p className="mx-auto mt-4 max-w-md text-sm text-gray-600 dark:text-slate-400 sm:mx-0">
               Autonomous trading agents for BNB Hack — CoinMarketCap Agent Hub, Trust Wallet Agent Kit,
@@ -25,6 +23,7 @@ export function Footer() {
               <li><Link href="/#features" className="hover:text-amber-600 dark:hover:text-amber-400">Hackathon Stack</Link></li>
               <li><Link href="/#how-it-works" className="hover:text-amber-600 dark:hover:text-amber-400">How It Works</Link></li>
               <li><Link href="/#faq" className="hover:text-amber-600 dark:hover:text-amber-400">FAQ</Link></li>
+              <li><Link href="/admin" target="_blank" rel="noopener noreferrer" className="hover:text-amber-600 dark:hover:text-amber-400">Agent Console</Link></li>
             </ul>
           </div>
 

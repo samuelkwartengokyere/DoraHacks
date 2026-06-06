@@ -5,8 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Cloud, Link2, Shield, Sliders, RefreshCw } from "lucide-react";
+import { Database, Cloud, Link2, Shield, Sliders, RefreshCw, Bell } from "lucide-react";
 import { api, type PlatformStatus } from "@/lib/api";
+import {
+  areBrowserNotificationsPreferred,
+  areNotificationsEnabled,
+  getBrowserNotificationPermission,
+  requestBrowserNotificationPermission,
+  setBrowserNotificationsPreferred,
+  setNotificationsEnabled,
+  type SignalNotificationPayload,
+} from "@/lib/signal-notifications";
 
 function modeBadgeVariant(mode: PlatformStatus["mode"]) {
   if (mode === "live") return "success" as const;
@@ -14,10 +23,19 @@ function modeBadgeVariant(mode: PlatformStatus["mode"]) {
   return "destructive" as const;
 }
 
-export function SettingsPanel() {
+export function SettingsPanel({
+  onTestNotification,
+}: {
+  onTestNotification?: (payloads: SignalNotificationPayload[]) => void;
+}) {
   const [status, setStatus] = useState<PlatformStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [statusError, setStatusError] = useState("");
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
+  const [browserNotifications, setBrowserNotificationsState] = useState(true);
+  const [browserPermission, setBrowserPermission] = useState<
+    NotificationPermission | "unsupported"
+  >("default");
 
   const loadStatus = useCallback(async () => {
     setLoadingStatus(true);
@@ -34,7 +52,41 @@ export function SettingsPanel() {
 
   useEffect(() => {
     loadStatus();
+    setNotificationsEnabledState(areNotificationsEnabled());
+    setBrowserNotificationsState(areBrowserNotificationsPreferred());
+    setBrowserPermission(getBrowserNotificationPermission());
   }, [loadStatus]);
+
+  async function handleEnableBrowserNotifications() {
+    const permission = await requestBrowserNotificationPermission();
+    setBrowserPermission(permission);
+    if (permission === "granted") {
+      setBrowserNotificationsPreferred(true);
+      setBrowserNotificationsState(true);
+    }
+  }
+
+  function toggleNotifications(enabled: boolean) {
+    setNotificationsEnabled(enabled);
+    setNotificationsEnabledState(enabled);
+  }
+
+  function toggleBrowserNotifications(enabled: boolean) {
+    setBrowserNotificationsPreferred(enabled);
+    setBrowserNotificationsState(enabled);
+  }
+
+  function handleTestNotification() {
+    onTestNotification?.([
+      {
+        action: "BUY",
+        symbol: "BNB",
+        confidence: 0.72,
+        source: "Test notification",
+        message: "Example buy signal — notifications are working.",
+      },
+    ]);
+  }
 
   const services = status
     ? [
@@ -163,6 +215,69 @@ export function SettingsPanel() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Signal Notifications
+              </CardTitle>
+              <CardDescription>
+                Automatic BUY and SELL alerts every 5 seconds while you are signed in. Monitoring
+                starts automatically — no need to press Start Monitor.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-100 px-4 py-3 dark:border-slate-800">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                    In-app alerts
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    Toast pop-ups and sound when a BUY or SELL signal appears or changes
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notificationsEnabled}
+                  onChange={(e) => toggleNotifications(e.target.checked)}
+                  className="h-4 w-4 accent-orange-500"
+                />
+              </label>
+
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-100 px-4 py-3 dark:border-slate-800">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                    Browser notifications
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    Desktop alerts for BUY and SELL signals (including while this tab is open)
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={browserNotifications}
+                  onChange={(e) => toggleBrowserNotifications(e.target.checked)}
+                  disabled={browserPermission === "unsupported"}
+                  className="h-4 w-4 accent-orange-500"
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">
+                  Browser permission: {browserPermission}
+                </Badge>
+                {browserPermission !== "granted" && browserPermission !== "unsupported" && (
+                  <Button size="sm" variant="outline" onClick={handleEnableBrowserNotifications}>
+                    Enable browser alerts
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={handleTestNotification}>
+                  Test notification
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

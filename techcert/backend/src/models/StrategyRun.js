@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const strategyRunSchema = new mongoose.Schema(
   {
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", index: true },
     name: { type: String, required: true },
     symbol: { type: String, required: true, uppercase: true },
     strategyType: { type: String, default: "cmc-momentum-ma-crossover" },
