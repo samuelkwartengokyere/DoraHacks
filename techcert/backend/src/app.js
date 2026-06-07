@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const { ensureReady } = require("./bootstrap");
 
 const authRoutes = require("./routes/auth");
 const statusRoutes = require("./routes/status");
@@ -8,7 +9,6 @@ const agentRoutes = require("./routes/agents");
 const tradeRoutes = require("./routes/trades");
 const strategyRoutes = require("./routes/strategies");
 const marketRoutes = require("./routes/market");
-const { getIntegrationStatus } = require("./utils/integrationStatus");
 
 const app = express();
 
@@ -16,18 +16,34 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get("/api/health", async (_req, res) => {
+app.get("/", (_req, res) => {
+  res.json({
+    service: "SignalForge AI API",
+    health: "/api/health",
+    status: "/api/status",
+  });
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "SignalForge AI API",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.use(async (_req, res, next) => {
   try {
-    const status = await getIntegrationStatus();
-    res.json({
-      status: "ok",
-      service: "SignalForge AI API",
-      mode: status.mode,
-      readyForProduction: status.readyForProduction,
-      timestamp: status.timestamp,
-    });
+    await ensureReady();
+    next();
   } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
+    console.error("Bootstrap error:", error.message);
+    res.status(503).json({
+      success: false,
+      message:
+        error.message ||
+        "Database unavailable. Set MONGODB_URI (MongoDB Atlas) in Vercel environment variables.",
+    });
   }
 });
 
