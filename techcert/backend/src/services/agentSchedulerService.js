@@ -2,7 +2,6 @@ const agentService = require("./agentService");
 const Agent = require("../models/Agent");
 
 const DEFAULT_POLL_SECONDS = Number(process.env.AGENT_SIGNAL_POLL_SECONDS || 30);
-const timers = new Map();
 
 async function executeSignalTick(agentId, ownerId) {
   try {
@@ -18,19 +17,6 @@ async function executeSignalTick(agentId, ownerId) {
       await agent.save();
     }
   }
-}
-
-function scheduleAgent(agentId, ownerId, pollSeconds = DEFAULT_POLL_SECONDS) {
-  if (timers.has(agentId)) {
-    clearInterval(timers.get(agentId));
-  }
-
-  const intervalMs = pollSeconds * 1000;
-  const handle = setInterval(() => {
-    executeSignalTick(agentId, ownerId);
-  }, intervalMs);
-
-  timers.set(agentId, handle);
 }
 
 async function startAutomation(agentId, ownerId, pollSeconds = DEFAULT_POLL_SECONDS) {
@@ -53,7 +39,6 @@ async function startAutomation(agentId, ownerId, pollSeconds = DEFAULT_POLL_SECO
   await agent.save();
 
   await agentService.adviseAgent(agentId, ownerId, { alwaysLog: true, monitored: true });
-  scheduleAgent(agentId, ownerId, seconds);
 
   const updated = await Agent.findById(agentId);
   return { agent: updated, alreadyRunning: false };
@@ -65,11 +50,6 @@ async function stopAutomation(agentId, ownerId) {
     throw new Error("Agent not found");
   }
 
-  if (timers.has(agentId)) {
-    clearInterval(timers.get(agentId));
-    timers.delete(agentId);
-  }
-
   agent.isAutomated = false;
   agent.status = "idle";
   agent.automatedStartedAt = null;
@@ -78,19 +58,26 @@ async function stopAutomation(agentId, ownerId) {
   return agent;
 }
 
-async function restoreAutomatedAgents() {
+async function runDueAutomations() {
   const agents = await Agent.find({ isAutomated: true });
+  const now = Date.now();
+  let ticks = 0;
+
   for (const agent of agents) {
-    const seconds = agent.signalPollSeconds || DEFAULT_POLL_SECONDS;
-    agent.status = "running";
-    await agent.save();
-    scheduleAgent(agent._id.toString(), agent.ownerId.toString(), seconds);
-    console.log(`Restored signal monitor: ${agent.name} (${agent._id}) every ${seconds}s`);
+    const pollSeconds = agent.signalPollSeconds || DEFAULT_POLL_SECONDS;
+    const lastRunMs = agent.lastRunAt ? new Date(agent.lastRunAt).getTime() : 0;
+
+    if (!lastRunMs || now - lastRunMs >= pollSeconds * 1000) {
+      await executeSignalTick(agent._id.toString(), agent.ownerId.toString());
+      ticks += 1;
+    }
   }
+
+  return { checked: agents.length, ticks };
 }
 
 module.exports = {
   startAutomation,
   stopAutomation,
-  restoreAutomatedAgents,
+  runDueAutomations,
 };

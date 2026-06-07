@@ -1,21 +1,32 @@
 const StrategySchedule = require("../models/StrategySchedule");
+const StrategyRun = require("../models/StrategyRun");
 const strategyService = require("./strategyService");
 
 const DEFAULT_POLL_SECONDS = Number(process.env.AGENT_SIGNAL_POLL_SECONDS || 30);
 const DEFAULT_BACKTEST_MINUTES = Number(process.env.STRATEGY_BACKTEST_INTERVAL_MINUTES || 10);
 
-const signalTimers = new Map();
-const backtestTimers = new Map();
 const lastBacktestOutput = new Map();
 
 function scheduleKey(ownerId) {
   return ownerId.toString();
 }
 
+async function loadPreviousBacktest(ownerId) {
+  const key = scheduleKey(ownerId);
+  const cached = lastBacktestOutput.get(key)?.backtest;
+  if (cached) return cached;
+
+  const latestRun = await StrategyRun.findOne({ ownerId })
+    .sort({ createdAt: -1 })
+    .select("skillOutput.backtest")
+    .lean();
+
+  return latestRun?.skillOutput?.backtest ?? null;
+}
+
 async function executeSignalTick(ownerId, params, { alwaysLog = false } = {}) {
   try {
-    const key = scheduleKey(ownerId);
-    const previousBacktest = lastBacktestOutput.get(key)?.backtest ?? null;
+    const previousBacktest = await loadPreviousBacktest(ownerId);
 
     const result = await strategyService.refreshSignalMonitor(ownerId, params, {
       alwaysLog,
@@ -47,47 +58,6 @@ async function executeBacktestTick(ownerId, params) {
     console.error(`Strategy backtest tick failed for user ${ownerId}:`, error.message);
     return null;
   }
-}
-
-function scheduleSignalMonitor(ownerId, params, pollSeconds = DEFAULT_POLL_SECONDS) {
-  const key = scheduleKey(ownerId);
-  if (signalTimers.has(key)) {
-    clearInterval(signalTimers.get(key));
-  }
-
-  const intervalMs = pollSeconds * 1000;
-  const handle = setInterval(() => {
-    executeSignalTick(ownerId, params);
-  }, intervalMs);
-
-  signalTimers.set(key, handle);
-}
-
-function scheduleBacktest(ownerId, params, backtestMinutes = DEFAULT_BACKTEST_MINUTES) {
-  const key = scheduleKey(ownerId);
-  if (backtestTimers.has(key)) {
-    clearInterval(backtestTimers.get(key));
-  }
-
-  const intervalMs = backtestMinutes * 60 * 1000;
-  const handle = setInterval(() => {
-    executeBacktestTick(ownerId, params);
-  }, intervalMs);
-
-  backtestTimers.set(key, handle);
-}
-
-function clearSchedules(ownerId) {
-  const key = scheduleKey(ownerId);
-  if (signalTimers.has(key)) {
-    clearInterval(signalTimers.get(key));
-    signalTimers.delete(key);
-  }
-  if (backtestTimers.has(key)) {
-    clearInterval(backtestTimers.get(key));
-    backtestTimers.delete(key);
-  }
-  lastBacktestOutput.delete(key);
 }
 
 async function getSchedule(ownerId) {
@@ -134,15 +104,13 @@ async function startAutomation(
   await executeBacktestTick(ownerId, defaults);
   await executeSignalTick(ownerId, defaults, { alwaysLog: true });
 
-  scheduleSignalMonitor(ownerId, defaults, seconds);
-  scheduleBacktest(ownerId, defaults, backtestMinutes);
-
   const updated = await StrategySchedule.findOne({ ownerId });
   return { schedule: updated, alreadyRunning: false };
 }
 
 async function stopAutomation(ownerId) {
-  clearSchedules(ownerId);
+  const key = scheduleKey(ownerId);
+  lastBacktestOutput.delete(key);
 
   const schedule = await StrategySchedule.findOneAndUpdate(
     { ownerId },
@@ -160,24 +128,40 @@ async function stopAutomation(ownerId) {
   return schedule;
 }
 
-async function restoreAutomatedSchedules() {
+async function runDueAutomations() {
   const schedules = await StrategySchedule.find({ isAutomated: true });
-  for (const schedule of schedules) {
-    const params = schedule.params || {};
-    const seconds = schedule.signalPollSeconds || DEFAULT_POLL_SECONDS;
-    const backtestMinutes = schedule.backtestIntervalMinutes || schedule.runIntervalMinutes || DEFAULT_BACKTEST_MINUTES;
+  const now = Date.now();
+  let signalTicks = 0;
+  let backtestTicks = 0;
 
-    scheduleSignalMonitor(schedule.ownerId.toString(), params, seconds);
-    scheduleBacktest(schedule.ownerId.toString(), params, backtestMinutes);
-    console.log(
-      `Restored strategy skill monitor for user ${schedule.ownerId} — signal every ${seconds}s, backtest every ${backtestMinutes}m`
-    );
+  for (const schedule of schedules) {
+    const ownerId = schedule.ownerId.toString();
+    const params = schedule.params || {};
+    const pollSeconds = schedule.signalPollSeconds || DEFAULT_POLL_SECONDS;
+    const backtestMinutes =
+      schedule.backtestIntervalMinutes || schedule.runIntervalMinutes || DEFAULT_BACKTEST_MINUTES;
+
+    const lastBacktestMs = schedule.lastBacktestAt ? new Date(schedule.lastBacktestAt).getTime() : 0;
+    const lastSignalMs = schedule.lastRunAt ? new Date(schedule.lastRunAt).getTime() : 0;
+
+    if (!lastBacktestMs || now - lastBacktestMs >= backtestMinutes * 60 * 1000) {
+      await executeBacktestTick(ownerId, params);
+      backtestTicks += 1;
+      continue;
+    }
+
+    if (!lastSignalMs || now - lastSignalMs >= pollSeconds * 1000) {
+      await executeSignalTick(ownerId, params);
+      signalTicks += 1;
+    }
   }
+
+  return { checked: schedules.length, signalTicks, backtestTicks };
 }
 
 module.exports = {
   getSchedule,
   startAutomation,
   stopAutomation,
-  restoreAutomatedSchedules,
+  runDueAutomations,
 };

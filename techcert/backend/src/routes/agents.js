@@ -18,21 +18,7 @@ router.get("/signals/:symbol", async (req, res) => {
 
 router.get("/live-status", auth, async (req, res) => {
   try {
-    let agents = await agentService.listAgents(req.admin.id);
-    await Promise.all(
-      agents
-        .filter((agent) => !agent.isAutomated)
-        .map((agent) =>
-          agentSchedulerService
-            .startAutomation(
-              agent._id.toString(),
-              req.admin.id,
-              Number(process.env.AGENT_SIGNAL_POLL_SECONDS || 15)
-            )
-            .catch(() => null)
-        )
-    );
-    agents = await agentService.listAgents(req.admin.id);
+    const agents = await agentService.listAgents(req.admin.id);
     const schedule = await strategySchedulerService.getSchedule(req.admin.id);
 
     const lastRunMs = schedule?.lastRunAt ? new Date(schedule.lastRunAt).getTime() : 0;
@@ -65,15 +51,6 @@ router.get("/", auth, async (req, res) => {
 router.post("/", auth, async (req, res) => {
   try {
     const agent = await agentService.createAgent(req.admin.id, req.body);
-    try {
-      await agentSchedulerService.startAutomation(
-        agent._id.toString(),
-        req.admin.id,
-        Number(process.env.AGENT_SIGNAL_POLL_SECONDS || 15)
-      );
-    } catch (monitorError) {
-      console.warn("Auto signal monitor failed for new agent:", monitorError.message);
-    }
     res.status(201).json({ success: true, agent });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
