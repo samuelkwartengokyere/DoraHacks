@@ -228,8 +228,10 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
             </div>
             {output.backtest.totalFeesUsd != null && (
               <p className="text-xs text-gray-500 dark:text-slate-400">
-                Simulated costs: ${output.backtest.totalFeesUsd.toFixed(2)} fees+slippage (
-                {output.backtest.feeBps}bps fee, {output.backtest.slippageBps}bps slippage)
+                Simulated costs: ${output.backtest.totalFeesUsd.toFixed(2)} fees+slippage
+                {output.backtest.feeBps != null && output.backtest.slippageBps != null
+                  ? ` (${output.backtest.feeBps}bps fee, ${output.backtest.slippageBps}bps slippage)`
+                  : ""}
                 {output.backtest.disqualified ? " · Would fail drawdown cap" : ""}
               </p>
             )}

@@ -227,6 +227,8 @@ export interface StrategyRun {
       winRate: number;
       maxDrawdownPercent?: number;
       totalFeesUsd?: number;
+      feeBps?: number;
+      slippageBps?: number;
       disqualified?: boolean;
       drawdownCapPercent?: number;
       minTradeCount?: number;
