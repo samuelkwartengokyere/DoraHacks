@@ -10,7 +10,9 @@
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "build:frontend": "npm run build --prefix frontend",
-    "check:live": "node scripts/check-live.js"
+    "check:live": "node scripts/check-live.js",
+    "configure:google": "node scripts/configure-google-auth.js",
+    "check:google": "node scripts/check-google-auth.js"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
