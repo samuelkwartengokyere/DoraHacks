@@ -229,14 +229,27 @@ class ApiClient {
     const token = this.getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    const response = await fetch(`${API_URL}${path}`, { ...options, headers });
-    const data = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${path}`, { ...options, headers });
+    } catch {
+      throw new Error(
+        `Cannot reach API at ${API_URL}. Set NEXT_PUBLIC_API_URL on Vercel to your backend URL (e.g. https://your-api.vercel.app/api) and redeploy the frontend.`
+      );
+    }
+
+    let data: { message?: string };
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(`API returned an invalid response (${response.status}). Check backend logs on Vercel.`);
+    }
 
     if (!response.ok) {
       throw new Error(data.message || "Request failed");
     }
 
-    return data;
+    return data as T;
   }
 
   async login(email: string, password: string) {
