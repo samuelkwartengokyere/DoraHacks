@@ -77,6 +77,69 @@ export interface TradingSignal {
   duration?: SignalDuration;
 }
 
+export interface AgentEvaluation {
+  initialUsd: number;
+  cashUsd: number;
+  positionQty: number;
+  equityUsd: number;
+  peakEquityUsd: number;
+  totalReturnPercent: number;
+  maxDrawdownPercent: number;
+  unrealizedPnlUsd: number;
+  realizedPnlUsd: number;
+  executedTradeCount: number;
+  totalFeesUsd: number;
+  isDisqualified: boolean;
+  disqualificationReason?: string | null;
+  disqualifiedAt?: string | null;
+  lastMarkToMarketAt?: string | null;
+  eligibility: {
+    eligible: boolean;
+    status: "ranked" | "disqualified" | "pending_min_trades" | "outside_window";
+    reason: string | null;
+    inWindow: boolean;
+  };
+  config: {
+    maxDrawdownPercent: number;
+    minTradeCount: number;
+    windowStart: string | null;
+    windowEnd: string | null;
+  };
+}
+
+export interface EvaluationConfig {
+  initialUsd: number;
+  maxDrawdownPercent: number;
+  minTradeCount: number;
+  feeBps: number;
+  slippageBps: number;
+  autoExecute: boolean;
+  windowStart: string | null;
+  windowEnd: string | null;
+  track: string;
+  rules: {
+    rankingMetric: string;
+    disqualifyAboveDrawdown: number;
+    requireMinTrades: number;
+    simulateTransactionCosts: boolean;
+  };
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  agentId: string;
+  agentName: string;
+  symbol: string;
+  totalReturnPercent: number;
+  maxDrawdownPercent: number;
+  equityUsd: number;
+  executedTradeCount: number;
+  isDisqualified: boolean;
+  status: string;
+  eligibility: AgentEvaluation["eligibility"];
+  minTradeCount: number;
+}
+
 export interface Agent {
   _id: string;
   name: string;
@@ -92,6 +155,7 @@ export interface Agent {
   totalTrades: number;
   lastRunAt?: string;
   lastSignal?: TradingSignal;
+  evaluation?: AgentEvaluation;
   createdAt: string;
   updatedAt: string;
 }
@@ -110,6 +174,15 @@ export interface Trade {
   txHash?: string;
   status: string;
   executionDetail?: string;
+  feeUsd?: number;
+  slippageUsd?: number;
+  effectivePriceUsd?: number;
+  quantity?: number;
+  pnlUsd?: number;
+  equityAfterUsd?: number;
+  totalReturnPercent?: number;
+  maxDrawdownPercent?: number;
+  withinEvaluationWindow?: boolean;
   createdAt: string;
 }
 
@@ -150,6 +223,12 @@ export interface StrategyRun {
       finalEquityUsd: number;
       tradeCount: number;
       winRate: number;
+      maxDrawdownPercent?: number;
+      totalFeesUsd?: number;
+      disqualified?: boolean;
+      drawdownCapPercent?: number;
+      minTradeCount?: number;
+      meetsMinTrades?: boolean;
       trades?: Array<{ type: string; price: number; time: number }>;
       chartSeries?: Array<{
         time: number;
@@ -434,6 +513,18 @@ class ApiClient {
         body: JSON.stringify(payload),
       }
     );
+  }
+
+  async getEvaluationConfig() {
+    return this.request<{ success: boolean; config: EvaluationConfig }>("/evaluation/config");
+  }
+
+  async getEvaluationLeaderboard(global = false) {
+    return this.request<{
+      success: boolean;
+      config: EvaluationConfig;
+      entries: LeaderboardEntry[];
+    }>(`/evaluation/leaderboard?global=${global}`);
   }
 
   async getPublicSignal(symbol = "BNB") {

@@ -1,11 +1,19 @@
 const cmcService = require("./cmcService");
 const twakService = require("./twakService");
+const evaluationService = require("./evaluationService");
+const { getEvaluationConfig, isWithinEvaluationWindow } = require("../config/evaluationConfig");
 const Agent = require("../models/Agent");
 const Trade = require("../models/Trade");
 
 class AgentService {
   async listAgents(ownerId) {
-    return Agent.find({ ownerId }).sort({ createdAt: -1 });
+    const agents = await Agent.find({ ownerId }).sort({ createdAt: -1 });
+    return agents.map((agent) => {
+      const price = agent.lastSignal?.metrics?.priceUsd;
+      const obj = agent.toObject();
+      obj.evaluation = evaluationService.serializeEvaluation(agent, price);
+      return obj;
+    });
   }
 
   async getAgentForOwner(agentId, ownerId) {
@@ -17,6 +25,7 @@ class AgentService {
   }
 
   async createAgent(ownerId, payload) {
+    const config = getEvaluationConfig();
     const agent = await Agent.create({
       ownerId,
       name: payload.name || "BNB Momentum Agent",
@@ -25,6 +34,7 @@ class AgentService {
       maxTradeUsd: payload.maxTradeUsd ?? 50,
       minConfidence: payload.minConfidence ?? 0.6,
       status: "idle",
+      evaluation: evaluationService.defaultEvaluation(config.initialUsd),
     });
     return agent;
   }
@@ -38,10 +48,12 @@ class AgentService {
     agent.lastSignal = signal;
     agent.lastRunAt = new Date();
     if (monitored && agent.isAutomated) {
-      agent.status = "running";
+      agent.status = agent.evaluation?.isDisqualified ? "paused" : "running";
     } else if (!monitored) {
       agent.status = "idle";
     }
+
+    await evaluationService.markToMarket(agent, signal.metrics?.priceUsd);
     await agent.save();
 
     if (!alwaysLog && !actionChanged) {
@@ -59,6 +71,7 @@ class AgentService {
       signal,
       executionMode: twakService.getMode(),
       status: "advisory",
+      withinEvaluationWindow: isWithinEvaluationWindow(),
     });
 
     return { agent, signal, trade, logged: true };
@@ -66,6 +79,15 @@ class AgentService {
 
   async runAgent(agentId, ownerId, { automated = false } = {}) {
     const agent = await this.getAgentForOwner(agentId, ownerId);
+    evaluationService.ensureEvaluation(agent);
+
+    if (agent.evaluation?.isDisqualified) {
+      throw new Error(agent.evaluation.disqualificationReason || "Agent disqualified — max drawdown exceeded");
+    }
+
+    if (!isWithinEvaluationWindow()) {
+      throw new Error("Outside held-out evaluation window — trades are not counted");
+    }
 
     agent.status = "running";
     agent.lastRunAt = new Date();
@@ -73,6 +95,7 @@ class AgentService {
 
     try {
       const signal = await cmcService.getTradingSignal(agent.symbol);
+      const priceUsd = signal.metrics?.priceUsd;
 
       if (signal.action === "HOLD" || signal.confidence < agent.minConfidence) {
         const skipReason =
@@ -85,63 +108,144 @@ class AgentService {
           symbol: agent.symbol,
           action: signal.action,
           amountUsd: 0,
-          priceUsd: signal.metrics.priceUsd,
+          priceUsd,
           confidence: signal.confidence,
           reasoning: skipReason,
           signal,
           executionMode: twakService.getMode(),
           status: "skipped",
+          withinEvaluationWindow: isWithinEvaluationWindow(),
         });
 
         agent.lastSignal = signal;
-        agent.status = automated && agent.isAutomated ? "running" : "idle";
+        await evaluationService.markToMarket(agent, priceUsd);
+        agent.status = automated && agent.isAutomated && !agent.evaluation?.isDisqualified ? "running" : "idle";
         await agent.save();
 
         return { agent, trade, signal, executed: false };
       }
 
+      if (signal.action === "BUY" && (agent.evaluation?.positionQty ?? 0) > 0) {
+        const trade = await Trade.create({
+          agentId: agent._id,
+          symbol: agent.symbol,
+          action: signal.action,
+          amountUsd: 0,
+          priceUsd,
+          confidence: signal.confidence,
+          reasoning: "Already in position — skip duplicate BUY",
+          signal,
+          executionMode: twakService.getMode(),
+          status: "skipped",
+          withinEvaluationWindow: isWithinEvaluationWindow(),
+        });
+        agent.lastSignal = signal;
+        await agent.save();
+        return { agent, trade, signal, executed: false };
+      }
+
+      if (signal.action === "SELL" && (agent.evaluation?.positionQty ?? 0) <= 0) {
+        const trade = await Trade.create({
+          agentId: agent._id,
+          symbol: agent.symbol,
+          action: signal.action,
+          amountUsd: 0,
+          priceUsd,
+          confidence: signal.confidence,
+          reasoning: "No open position — skip SELL",
+          signal,
+          executionMode: twakService.getMode(),
+          status: "skipped",
+          withinEvaluationWindow: isWithinEvaluationWindow(),
+        });
+        agent.lastSignal = signal;
+        await agent.save();
+        return { agent, trade, signal, executed: false };
+      }
+
+      const tradeAmount =
+        signal.action === "BUY"
+          ? Math.min(agent.maxTradeUsd, agent.evaluation?.cashUsd ?? agent.maxTradeUsd)
+          : agent.maxTradeUsd;
+
       const execution = await twakService.executeSwap({
         symbol: agent.symbol,
         action: signal.action,
-        amountUsd: agent.maxTradeUsd,
+        amountUsd: tradeAmount,
         walletAddress: process.env.AGENT_WALLET_ADDRESS,
       });
 
-      if (execution.ok && signal.action === "SELL") {
-        await Trade.updateMany(
-          { agentId: agent._id, status: "open", action: "BUY" },
-          {
-            status: "completed",
-            executionDetail: "Position closed by SELL execution",
-          }
-        );
+      let portfolioResult = null;
+      if (execution.ok) {
+        if (signal.action === "BUY") {
+          portfolioResult = await evaluationService.applyBuy(agent, {
+            amountUsd: tradeAmount,
+            priceUsd,
+          });
+        } else {
+          portfolioResult = await evaluationService.applySell(agent, { priceUsd });
+          await Trade.updateMany(
+            { agentId: agent._id, status: "open", action: "BUY" },
+            {
+              status: "completed",
+              executionDetail: "Position closed by SELL execution",
+            }
+          );
+        }
       }
 
+      if (!portfolioResult?.ok && execution.ok) {
+        execution.ok = false;
+        execution.message = portfolioResult?.reason || "Portfolio update failed";
+      }
+
+      const fill = portfolioResult?.fill;
       const trade = await Trade.create({
         agentId: agent._id,
         symbol: agent.symbol,
         action: signal.action,
-        amountUsd: agent.maxTradeUsd,
-        priceUsd: signal.metrics.priceUsd,
+        amountUsd: signal.action === "BUY" ? tradeAmount : fill?.netUsd ?? tradeAmount,
+        priceUsd,
+        effectivePriceUsd: fill?.effectivePriceUsd,
+        quantity: fill?.quantity,
+        feeUsd: fill?.feeUsd ?? 0,
+        slippageUsd: fill?.slippageUsd ?? 0,
+        pnlUsd: portfolioResult?.realizedPnlUsd,
+        equityAfterUsd: portfolioResult?.equityUsd ?? agent.evaluation?.equityUsd,
+        totalReturnPercent: portfolioResult?.totalReturnPercent ?? agent.evaluation?.totalReturnPercent,
+        maxDrawdownPercent: portfolioResult?.maxDrawdownPercent ?? agent.evaluation?.maxDrawdownPercent,
         confidence: signal.confidence,
         reasoning: signal.reasons.join("; "),
         signal,
         executionMode: execution.mode,
         txHash: execution.txHash,
-        status: execution.ok ? "open" : "failed",
+        status: execution.ok ? (signal.action === "BUY" ? "open" : "completed") : "failed",
         executionDetail: execution.message,
+        withinEvaluationWindow: isWithinEvaluationWindow(),
       });
 
       agent.lastSignal = signal;
       agent.totalTrades = (agent.totalTrades || 0) + (execution.ok ? 1 : 0);
-      if (execution.ok) {
+
+      if (agent.evaluation?.isDisqualified && agent.isAutomated) {
+        agent.isAutomated = false;
+        agent.status = "paused";
+      } else if (execution.ok) {
         agent.status = automated && agent.isAutomated ? "running" : "idle";
       } else {
         agent.status = automated && agent.isAutomated ? "running" : "error";
       }
+
       await agent.save();
 
-      return { agent, trade, signal, executed: execution.ok, execution };
+      return {
+        agent,
+        trade,
+        signal,
+        executed: execution.ok,
+        execution,
+        evaluation: evaluationService.serializeEvaluation(agent, priceUsd),
+      };
     } catch (error) {
       agent.status = automated && agent.isAutomated ? "running" : "error";
       await agent.save();
@@ -221,12 +325,23 @@ class AgentService {
       throw new Error("Only open trades can be cancelled");
     }
 
+    const agent = await Agent.findById(trade.agentId);
     let exitPrice = trade.priceUsd;
     try {
       const signal = await cmcService.getTradingSignal(trade.symbol);
       exitPrice = signal.metrics?.priceUsd ?? exitPrice;
     } catch {
       // keep entry price as fallback
+    }
+
+    if (agent && trade.action === "BUY") {
+      await evaluationService.revertBuy(agent, {
+        amountUsd: trade.amountUsd,
+        priceUsd: exitPrice,
+        feeUsd: trade.feeUsd ?? 0,
+        slippageUsd: trade.slippageUsd ?? 0,
+        quantity: trade.quantity ?? 0,
+      });
     }
 
     trade.status = "cancelled";

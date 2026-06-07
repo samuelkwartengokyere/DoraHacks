@@ -133,6 +133,23 @@ Landing page (no login): http://localhost:3000
 
 ---
 
+## Track 1 Evaluation (Autonomous Agents)
+
+SignalForge implements the Track 1 scoring rules in-app:
+
+| Rule | Implementation |
+|------|----------------|
+| **Live PnL / total return** | Per-agent portfolio tracked in MongoDB (`evaluation.equityUsd`, `totalReturnPercent`) |
+| **Held-out window** | Set `EVALUATION_WINDOW_START` / `EVALUATION_WINDOW_END` — trades outside the window are rejected |
+| **Max drawdown cap** | Default 30% (`EVALUATION_MAX_DRAWDOWN_PERCENT`) — exceeding it disqualifies the agent |
+| **Minimum trade count** | Default 5 (`EVALUATION_MIN_TRADE_COUNT`) — required for leaderboard eligibility |
+| **Transaction costs** | Fees + slippage on every fill (`EVALUATION_FEE_BPS`, `EVALUATION_SLIPPAGE_BPS`) |
+| **Autonomous execution** | **Start monitor** auto-executes on signal change when `EVALUATION_AUTO_EXECUTE=true` |
+
+Leaderboard: `GET /api/evaluation/leaderboard` · Config: `GET /api/evaluation/config`
+
+---
+
 ## Demo Flow (for judges)
 
 1. **Agent** — Create an agent → **Check signal now** or **Execute trade**

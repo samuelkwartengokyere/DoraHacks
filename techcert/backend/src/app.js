@@ -12,6 +12,7 @@ const tradeRoutes = require("./routes/trades");
 const strategyRoutes = require("./routes/strategies");
 const marketRoutes = require("./routes/market");
 const cronRoutes = require("./routes/cron");
+const evaluationRoutes = require("./routes/evaluation");
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use("/api/trades", tradeRoutes);
 app.use("/api/strategies", strategyRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/cron", cronRoutes);
+app.use("/api/evaluation", evaluationRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err.stack);

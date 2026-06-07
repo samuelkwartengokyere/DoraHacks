@@ -20,6 +20,15 @@ const tradeSchema = new mongoose.Schema(
     cancelledAt: { type: Date },
     cancelReason: { type: String },
     executionDetail: { type: String },
+    feeUsd: { type: Number, default: 0 },
+    slippageUsd: { type: Number, default: 0 },
+    effectivePriceUsd: { type: Number },
+    quantity: { type: Number },
+    pnlUsd: { type: Number },
+    equityAfterUsd: { type: Number },
+    totalReturnPercent: { type: Number },
+    maxDrawdownPercent: { type: Number },
+    withinEvaluationWindow: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

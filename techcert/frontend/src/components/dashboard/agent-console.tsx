@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { api, type Agent, type Trade, type TradingSignal } from "@/lib/api";
 import { SignalDurationPanel } from "@/components/dashboard/signal-duration-panel";
+import { AgentEvaluationBadge } from "@/components/dashboard/evaluation-track-panel";
 import { isOpenTrade } from "@/lib/trade-utils";
 
 const POLL_MS = 15_000;
@@ -114,6 +115,7 @@ function AgentTabPanel({
 }: AgentTabPanelProps) {
   const signal = agent.lastSignal ?? fallbackSignal;
   const busy = actionId === agent._id;
+  const disqualified = Boolean(agent.evaluation?.isDisqualified);
 
   return (
     <div className="space-y-4">
@@ -132,9 +134,10 @@ function AgentTabPanel({
         {agent.isAutomated && (
           <Badge variant="success" className="animate-pulse gap-1">
             <Bell className="h-3 w-3" />
-            Monitoring · {agent.signalPollSeconds || 30}s
+            Monitoring · {agent.signalPollSeconds || 30}s · auto-execute
           </Badge>
         )}
+        <AgentEvaluationBadge evaluation={agent.evaluation} />
       </div>
 
       {signal ? (
@@ -168,12 +171,18 @@ function AgentTabPanel({
         </p>
       )}
 
+      {disqualified && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          {agent.evaluation?.disqualificationReason}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
           size="sm"
           onClick={() => onCheckSignal(agent._id)}
-          disabled={busy}
+          disabled={busy || disqualified}
           className="gap-2"
         >
           <Zap className="h-4 w-4" />
@@ -194,7 +203,7 @@ function AgentTabPanel({
           <Button
             size="sm"
             onClick={() => onStartMonitor(agent._id)}
-            disabled={busy}
+            disabled={busy || disqualified}
             className="gap-2 bg-amber-500 hover:bg-amber-600"
           >
             <Bell className="h-4 w-4" />
@@ -205,7 +214,7 @@ function AgentTabPanel({
           variant="outline"
           size="sm"
           onClick={() => onExecuteTrade(agent._id)}
-          disabled={busy}
+          disabled={busy || disqualified}
           className="gap-2"
         >
           <Play className="h-4 w-4" />

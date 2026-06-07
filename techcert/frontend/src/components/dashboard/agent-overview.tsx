@@ -3,22 +3,35 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, LineChart, TrendingUp, Zap } from "lucide-react";
-import type { Agent, Trade } from "@/lib/api";
+import { Bot, TrendingUp, Zap } from "lucide-react";
+import { EvaluationTrackPanel } from "@/components/dashboard/evaluation-track-panel";
+import type { Agent, Trade, EvaluationConfig, LeaderboardEntry } from "@/lib/api";
 
 interface AgentOverviewProps {
   agents: Agent[];
   trades: Trade[];
+  evaluationConfig: EvaluationConfig | null;
+  leaderboard: LeaderboardEntry[];
   onNavigate: (tab: "agent" | "strategies" | "chart" | "trades" | "settings") => void;
 }
 
-export function AgentOverview({ agents, trades, onNavigate }: AgentOverviewProps) {
-  const completedTrades = trades.filter((t) => t.status === "completed");
+export function AgentOverview({ agents, trades, evaluationConfig, leaderboard, onNavigate }: AgentOverviewProps) {
+  const completedTrades = trades.filter((t) => t.status === "completed" || t.status === "open");
   const lastSignal = agents.find((a) => a.lastSignal)?.lastSignal;
+  const topEvaluation = agents[0]?.evaluation;
+  const liveReturn = topEvaluation?.totalReturnPercent;
 
   return (
     <div className="space-y-6">
+      <EvaluationTrackPanel config={evaluationConfig} agents={agents} leaderboard={leaderboard} />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Live Return"
+          value={liveReturn != null ? `${liveReturn >= 0 ? "+" : ""}${liveReturn.toFixed(2)}%` : "—"}
+          description="Track 1 total return (after costs)"
+          icon={TrendingUp}
+        />
         <StatCard
           title="Active Agents"
           value={String(agents.length)}
@@ -36,12 +49,6 @@ export function AgentOverview({ agents, trades, onNavigate }: AgentOverviewProps
           value={lastSignal?.action || "—"}
           description={lastSignal?.regime ? `${lastSignal.regime} regime` : "Run an agent to fetch CMC data"}
           icon={Zap}
-        />
-        <StatCard
-          title="Hackathon Stack"
-          value="CMC + TWAK"
-          description="BNB Chain testnet execution"
-          icon={LineChart}
         />
       </div>
 

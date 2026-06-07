@@ -32,7 +32,7 @@ import {
   snapshotRunIds,
   snapshotTradeIds,
 } from "@/lib/signal-watcher";
-import { api, type Agent, type Trade, type StrategyRun, type StrategySchedule, type TradingSignal } from "@/lib/api";
+import { api, type Agent, type Trade, type StrategyRun, type StrategySchedule, type TradingSignal, type EvaluationConfig, type LeaderboardEntry } from "@/lib/api";
 
 const REALTIME_POLL_MS = 5_000;
 const FULL_REFRESH_MS = 15_000;
@@ -43,6 +43,8 @@ export function AdminDashboard() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strategyRuns, setStrategyRuns] = useState<StrategyRun[]>([]);
   const [strategySchedule, setStrategySchedule] = useState<StrategySchedule | null>(null);
+  const [evaluationConfig, setEvaluationConfig] = useState<EvaluationConfig | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [liveMarketSignal, setLiveMarketSignal] = useState<TradingSignal | null>(null);
   const [highlightTradeId, setHighlightTradeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,10 +82,12 @@ export function AdminDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [agentsRes, tradesRes, strategiesRes] = await Promise.all([
+      const [agentsRes, tradesRes, strategiesRes, evalConfigRes, leaderboardRes] = await Promise.all([
         api.getAgents(),
         api.getTrades(),
         api.getStrategyRuns(),
+        api.getEvaluationConfig().catch(() => ({ success: false, config: null })),
+        api.getEvaluationLeaderboard().catch(() => ({ success: false, entries: [] as LeaderboardEntry[], config: null })),
       ]);
 
       const notifications = detectNewSignalNotifications(
@@ -108,6 +112,8 @@ export function AdminDashboard() {
       setTrades(tradesRes.trades);
       setStrategyRuns(strategiesRes.runs);
       setStrategySchedule(strategiesRes.schedule);
+      if (evalConfigRes.config) setEvaluationConfig(evalConfigRes.config);
+      if (leaderboardRes.entries) setLeaderboard(leaderboardRes.entries);
     } catch {
       setAuthenticated(false);
       api.logout();
@@ -183,6 +189,8 @@ export function AdminDashboard() {
     setTrades([]);
     setStrategyRuns([]);
     setStrategySchedule(null);
+    setEvaluationConfig(null);
+    setLeaderboard([]);
     setActiveTab("overview");
     bootstrappedRef.current = false;
     tradeIdsRef.current = new Set();
@@ -249,7 +257,13 @@ export function AdminDashboard() {
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
           {activeTab === "overview" && (
             <TabContent tabKey="overview">
-              <AgentOverview agents={agents} trades={trades} onNavigate={setActiveTab} />
+              <AgentOverview
+                agents={agents}
+                trades={trades}
+                evaluationConfig={evaluationConfig}
+                leaderboard={leaderboard}
+                onNavigate={setActiveTab}
+              />
             </TabContent>
           )}
 

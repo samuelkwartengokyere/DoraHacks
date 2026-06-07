@@ -334,13 +334,31 @@ class StrategyService {
   }
 
   backtestMaCrossover(candles, { fastPeriod = 9, slowPeriod = 21, initialUsd = 1000 } = {}) {
+    const transactionCostService = require("./transactionCostService");
+    const { getEvaluationConfig } = require("../config/evaluationConfig");
+    const costConfig = getEvaluationConfig();
+
     const closes = candles.map((c) => c.close);
     const fast = this.movingAverage(closes, fastPeriod);
     const slow = this.movingAverage(closes, slowPeriod);
 
     let cash = initialUsd;
     let position = 0;
+    let peakEquity = initialUsd;
+    let maxDrawdownPercent = 0;
+    let totalFeesUsd = 0;
     const trades = [];
+    const equityCurve = [];
+
+    const recordEquity = (price) => {
+      const equity = cash + position * price;
+      peakEquity = Math.max(peakEquity, equity);
+      if (peakEquity > 0) {
+        maxDrawdownPercent = Math.max(maxDrawdownPercent, ((peakEquity - equity) / peakEquity) * 100);
+      }
+      equityCurve.push(equity);
+      return equity;
+    };
 
     for (let i = slowPeriod; i < closes.length; i += 1) {
       const prevFast = fast[i - 1];
@@ -354,20 +372,51 @@ class StrategyService {
       const price = closes[i];
 
       if (goldenCross && position === 0 && cash > 0) {
-        position = cash / price;
-        trades.push({ type: "BUY", price, time: candles[i].openTime });
+        const fill = transactionCostService.simulateBuy({
+          amountUsd: cash,
+          priceUsd: price,
+          feeBps: costConfig.feeBps,
+          slippageBps: costConfig.slippageBps,
+        });
+        position = fill.quantity;
         cash = 0;
+        totalFeesUsd += fill.totalCostUsd;
+        trades.push({
+          type: "BUY",
+          price,
+          effectivePrice: fill.effectivePriceUsd,
+          time: candles[i].openTime,
+          feeUsd: fill.feeUsd,
+          slippageUsd: fill.slippageUsd,
+        });
       } else if (deathCross && position > 0) {
-        cash = position * price;
-        trades.push({ type: "SELL", price, time: candles[i].openTime });
+        const fill = transactionCostService.simulateSell({
+          quantity: position,
+          priceUsd: price,
+          feeBps: costConfig.feeBps,
+          slippageBps: costConfig.slippageBps,
+        });
+        cash = fill.netUsd;
+        totalFeesUsd += fill.totalCostUsd;
+        trades.push({
+          type: "SELL",
+          price,
+          effectivePrice: fill.effectivePriceUsd,
+          time: candles[i].openTime,
+          feeUsd: fill.feeUsd,
+          slippageUsd: fill.slippageUsd,
+        });
         position = 0;
       }
+
+      recordEquity(price);
     }
 
     const finalPrice = closes[closes.length - 1];
-    const equity = cash + position * finalPrice;
+    const equity = recordEquity(finalPrice);
     const pnlUsd = equity - initialUsd;
     const pnlPercent = (pnlUsd / initialUsd) * 100;
+    const disqualified = maxDrawdownPercent > costConfig.maxDrawdownPercent;
 
     const chartSeries = candles.map((candle, i) => ({
       time: candle.openTime,
@@ -389,7 +438,16 @@ class StrategyService {
       tradeCount: trades.length,
       trades,
       winRate: this.calculateWinRate(trades),
+      maxDrawdownPercent,
+      totalFeesUsd,
+      feeBps: costConfig.feeBps,
+      slippageBps: costConfig.slippageBps,
+      disqualified,
+      drawdownCapPercent: costConfig.maxDrawdownPercent,
+      minTradeCount: costConfig.minTradeCount,
+      meetsMinTrades: trades.length >= costConfig.minTradeCount,
       chartSeries,
+      equityCurve,
     };
   }
 
@@ -402,7 +460,9 @@ class StrategyService {
       const sell = trades[i];
       if (buy?.type === "BUY" && sell?.type === "SELL") {
         pairs += 1;
-        if (sell.price > buy.price) wins += 1;
+        const buyPrice = buy.effectivePrice ?? buy.price;
+        const sellPrice = sell.effectivePrice ?? sell.price;
+        if (sellPrice > buyPrice) wins += 1;
       }
     }
     return pairs === 0 ? 0 : (wins / pairs) * 100;

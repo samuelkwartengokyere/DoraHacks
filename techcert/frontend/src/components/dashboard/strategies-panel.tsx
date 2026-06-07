@@ -208,15 +208,31 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
               <Badge variant={output.backtest.pnlPercent >= 0 ? "success" : "destructive"}>
                 Backtest {output.backtest.pnlPercent.toFixed(2)}%
               </Badge>
+              {output.backtest.maxDrawdownPercent != null && (
+                <Badge variant={output.backtest.disqualified ? "destructive" : "outline"}>
+                  Max DD {output.backtest.maxDrawdownPercent.toFixed(1)}%
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-gray-600 dark:text-slate-400">
               {output.recommendation.rationale}
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Metric label="Final equity" value={`$${output.backtest.finalEquityUsd.toFixed(2)}`} />
               <Metric label="Trades" value={String(output.backtest.tradeCount)} />
               <Metric label="Win rate" value={`${output.backtest.winRate.toFixed(1)}%`} />
+              <Metric
+                label="Max drawdown"
+                value={`${(output.backtest.maxDrawdownPercent ?? 0).toFixed(1)}%`}
+              />
             </div>
+            {output.backtest.totalFeesUsd != null && (
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                Simulated costs: ${output.backtest.totalFeesUsd.toFixed(2)} fees+slippage (
+                {output.backtest.feeBps}bps fee, {output.backtest.slippageBps}bps slippage)
+                {output.backtest.disqualified ? " · Would fail drawdown cap" : ""}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
