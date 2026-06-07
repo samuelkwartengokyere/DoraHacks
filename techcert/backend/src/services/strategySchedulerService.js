@@ -175,23 +175,9 @@ async function restoreAutomatedSchedules() {
   }
 }
 
-async function ensureMonitoring(ownerId, params = {}) {
-  const schedule = await StrategySchedule.findOne({ ownerId });
-  if (schedule?.isAutomated) {
-    return { schedule, started: false };
-  }
-
-  const result = await startAutomation(ownerId, params, {
-    pollSeconds: Number(process.env.AGENT_SIGNAL_POLL_SECONDS || 15),
-    backtestIntervalMinutes: DEFAULT_BACKTEST_MINUTES,
-  });
-  return { schedule: result.schedule, started: !result.alreadyRunning };
-}
-
 module.exports = {
   getSchedule,
   startAutomation,
   stopAutomation,
   restoreAutomatedSchedules,
-  ensureMonitoring,
 };

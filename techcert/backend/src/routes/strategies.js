@@ -8,7 +8,6 @@ const router = express.Router();
 
 router.get("/", auth, async (req, res) => {
   try {
-    await strategySchedulerService.ensureMonitoring(req.admin.id);
     const [runs, schedule] = await Promise.all([
       StrategyRun.find({ ownerId: req.admin.id }).sort({ createdAt: -1 }).limit(50),
       strategySchedulerService.getSchedule(req.admin.id),

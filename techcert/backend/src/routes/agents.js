@@ -18,7 +18,6 @@ router.get("/signals/:symbol", async (req, res) => {
 
 router.get("/live-status", auth, async (req, res) => {
   try {
-    await strategySchedulerService.ensureMonitoring(req.admin.id);
     let agents = await agentService.listAgents(req.admin.id);
     await Promise.all(
       agents
