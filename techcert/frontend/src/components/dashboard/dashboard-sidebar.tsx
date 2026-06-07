@@ -64,10 +64,7 @@ export function DashboardMobileNav({
 }: DashboardSidebarProps & { open: boolean; onClose: () => void }) {
   return (
     <div
-      className={cn(
-        "fixed inset-0 z-50 lg:hidden",
-        !open && "pointer-events-none"
-      )}
+      className={cn("fixed inset-0 z-50 lg:hidden", !open && "hidden")}
       aria-hidden={!open}
     >
       <div

@@ -494,79 +494,83 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
           ))}
         </TabsList>
 
-        <TabsContent value={CREATE_TAB}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Agent</CardTitle>
-              <CardDescription>
-                Set up a new signal agent — then switch to its tab to check BUY / SELL / HOLD
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="agentName">Agent name</Label>
-                  <Input id="agentName" value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxTrade">Max trade (USD, when executing)</Label>
-                  <Input
-                    id="maxTrade"
-                    type="number"
-                    min="1"
-                    value={maxTradeUsd}
-                    onChange={(e) => setMaxTradeUsd(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="confidence">Min confidence to execute (0–1)</Label>
-                  <Input
-                    id="confidence"
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={minConfidence}
-                    onChange={(e) => setMinConfidence(e.target.value)}
-                  />
-                </div>
-              </div>
-              <Button onClick={handleCreate} disabled={loading} className="gap-2">
-                <Plus className="h-4 w-4" />
-                {loading ? "Creating..." : "Create Agent"}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {agents.map((agent) => (
-          <TabsContent key={agent._id} value={agent._id}>
+        {activeTab === CREATE_TAB && (
+          <TabsContent value={CREATE_TAB}>
             <Card>
               <CardHeader>
-                <CardTitle>{agent.name}</CardTitle>
+                <CardTitle>Create Agent</CardTitle>
                 <CardDescription>
-                  Signal monitor and trade controls for this agent
+                  Set up a new signal agent — then switch to its tab to check BUY / SELL / HOLD
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <AgentTabPanel
-                  agent={agent}
-                  openTrades={trades.filter(
-                    (t) => isOpenTrade(t) && tradeAgentId(t) === agent._id,
-                  )}
-                  fallbackSignal={liveSignal}
-                  actionId={actionId}
-                  onCheckSignal={handleCheckSignal}
-                  onStartMonitor={handleStartMonitor}
-                  onStopMonitor={handleStopMonitor}
-                  onExecuteTrade={handleExecuteTrade}
-                  onCancelTrade={handleCancelTrade}
-                  onViewOnChart={(tradeId) => onTradeExecuted?.(tradeId)}
-                />
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="agentName">Agent name</Label>
+                    <Input id="agentName" value={name} onChange={(e) => setName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxTrade">Max trade (USD, when executing)</Label>
+                    <Input
+                      id="maxTrade"
+                      type="number"
+                      min="1"
+                      value={maxTradeUsd}
+                      onChange={(e) => setMaxTradeUsd(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="confidence">Min confidence to execute (0–1)</Label>
+                    <Input
+                      id="confidence"
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={minConfidence}
+                      onChange={(e) => setMinConfidence(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleCreate} disabled={loading} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  {loading ? "Creating..." : "Create Agent"}
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
-        ))}
+        )}
+
+        {agents.map((agent) =>
+          activeTab === agent._id ? (
+            <TabsContent key={agent._id} value={agent._id}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{agent.name}</CardTitle>
+                  <CardDescription>
+                    Signal monitor and trade controls for this agent
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AgentTabPanel
+                    agent={agent}
+                    openTrades={trades.filter(
+                      (t) => isOpenTrade(t) && tradeAgentId(t) === agent._id,
+                    )}
+                    fallbackSignal={liveSignal}
+                    actionId={actionId}
+                    onCheckSignal={handleCheckSignal}
+                    onStartMonitor={handleStartMonitor}
+                    onStopMonitor={handleStopMonitor}
+                    onExecuteTrade={handleExecuteTrade}
+                    onCancelTrade={handleCancelTrade}
+                    onViewOnChart={(tradeId) => onTradeExecuted?.(tradeId)}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ) : null,
+        )}
       </Tabs>
     </div>
   );

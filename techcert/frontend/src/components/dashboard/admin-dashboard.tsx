@@ -228,7 +228,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-900">
+    <div className="fixed inset-0 flex overflow-hidden bg-slate-100 dark:bg-slate-900">
       <DashboardSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -254,7 +254,7 @@ export function AdminDashboard() {
           monitoring={Boolean(strategySchedule?.isAutomated || agents.some((a) => a.isAutomated))}
         />
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:p-6 sm:pb-[max(2rem,env(safe-area-inset-bottom,0px))] lg:p-8">
           {activeTab === "overview" && (
             <TabContent tabKey="overview">
               <AgentOverview
