@@ -123,6 +123,8 @@ export interface EvaluationConfig {
     requireMinTrades: number;
     simulateTransactionCosts: boolean;
   };
+  source?: "env" | "dashboard";
+  updatedAt?: string | null;
 }
 
 export interface LeaderboardEntry {
@@ -517,6 +519,37 @@ class ApiClient {
 
   async getEvaluationConfig() {
     return this.request<{ success: boolean; config: EvaluationConfig }>("/evaluation/config");
+  }
+
+  async getEvaluationSettings() {
+    return this.request<{
+      success: boolean;
+      config: EvaluationConfig;
+      source: "env" | "dashboard";
+      envDefaults: EvaluationConfig;
+    }>("/evaluation/settings");
+  }
+
+  async updateEvaluationSettings(payload: {
+    initialUsd?: number;
+    maxDrawdownPercent?: number;
+    minTradeCount?: number;
+    feeBps?: number;
+    slippageBps?: number;
+    autoExecute?: boolean;
+    windowStart?: string | null;
+    windowEnd?: string | null;
+  }) {
+    return this.request<{
+      success: boolean;
+      config: EvaluationConfig;
+      source: string;
+      message: string;
+    }>("/evaluation/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   }
 
   async getEvaluationLeaderboard(global = false) {

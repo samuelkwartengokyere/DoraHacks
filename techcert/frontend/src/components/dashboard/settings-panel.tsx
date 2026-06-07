@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Cloud, Link2, Shield, Sliders, RefreshCw, Bell } from "lucide-react";
+import { Database, Cloud, Link2, Shield, Sliders, RefreshCw, Bell, Trophy } from "lucide-react";
 import { api, type PlatformStatus } from "@/lib/api";
 import {
   areBrowserNotificationsPreferred,
@@ -21,6 +23,209 @@ function modeBadgeVariant(mode: PlatformStatus["mode"]) {
   if (mode === "live") return "success" as const;
   if (mode === "partial") return "outline" as const;
   return "destructive" as const;
+}
+
+function toDatetimeLocal(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(value: string) {
+  if (!value.trim()) return null;
+  return new Date(value).toISOString();
+}
+
+function EvaluationRulesSettings() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [source, setSource] = useState<"env" | "dashboard">("env");
+  const [initialUsd, setInitialUsd] = useState("1000");
+  const [maxDrawdownPercent, setMaxDrawdownPercent] = useState("30");
+  const [minTradeCount, setMinTradeCount] = useState("5");
+  const [feeBps, setFeeBps] = useState("10");
+  const [slippageBps, setSlippageBps] = useState("100");
+  const [autoExecute, setAutoExecute] = useState(true);
+  const [windowStart, setWindowStart] = useState("");
+  const [windowEnd, setWindowEnd] = useState("");
+
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await api.getEvaluationSettings();
+      const config = data.config;
+      setSource(data.source);
+      setInitialUsd(String(config.initialUsd));
+      setMaxDrawdownPercent(String(config.maxDrawdownPercent));
+      setMinTradeCount(String(config.minTradeCount));
+      setFeeBps(String(config.feeBps));
+      setSlippageBps(String(config.slippageBps));
+      setAutoExecute(config.autoExecute);
+      setWindowStart(toDatetimeLocal(config.windowStart));
+      setWindowEnd(toDatetimeLocal(config.windowEnd));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load evaluation settings");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api.updateEvaluationSettings({
+        initialUsd: Number(initialUsd),
+        maxDrawdownPercent: Number(maxDrawdownPercent),
+        minTradeCount: Number(minTradeCount),
+        feeBps: Number(feeBps),
+        slippageBps: Number(slippageBps),
+        autoExecute,
+        windowStart: fromDatetimeLocal(windowStart),
+        windowEnd: fromDatetimeLocal(windowEnd),
+      });
+      setSource(result.source as "env" | "dashboard");
+      setMessage(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save evaluation settings");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-amber-500" />
+            Track 1 Evaluation Rules
+          </CardTitle>
+          <CardDescription>
+            Set hackathon scoring parameters here when judges provide figures. Applies immediately to
+            drawdown, costs, min trades, and the held-out window.
+          </CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={loadSettings} disabled={loading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={source === "dashboard" ? "success" : "outline"}>
+            Source: {source === "dashboard" ? "Admin dashboard" : "Environment defaults"}
+          </Badge>
+          <Badge variant="outline">Public config: GET /api/evaluation/config</Badge>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-200">
+            {message}
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-sm text-gray-500 dark:text-slate-400">Loading evaluation rules...</p>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Starting capital (USD)" value={initialUsd} onChange={setInitialUsd} />
+              <Field
+                label="Max drawdown cap (%)"
+                value={maxDrawdownPercent}
+                onChange={setMaxDrawdownPercent}
+              />
+              <Field label="Minimum trade count" value={minTradeCount} onChange={setMinTradeCount} />
+              <Field label="Fee (basis points)" value={feeBps} onChange={setFeeBps} />
+              <Field label="Slippage (basis points)" value={slippageBps} onChange={setSlippageBps} />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="windowStart">Held-out window start</Label>
+                <Input
+                  id="windowStart"
+                  type="datetime-local"
+                  value={windowStart}
+                  onChange={(e) => setWindowStart(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="windowEnd">Held-out window end</Label>
+                <Input
+                  id="windowEnd"
+                  type="datetime-local"
+                  value={windowEnd}
+                  onChange={(e) => setWindowEnd(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-100 px-4 py-3 dark:border-slate-800">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                  Auto-execute on monitor
+                </p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  When enabled, Start monitor places trades on BUY/SELL signal changes
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={autoExecute}
+                onChange={(e) => setAutoExecute(e.target.checked)}
+                className="h-4 w-4 accent-orange-500"
+              />
+            </label>
+
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              Changing starting capital only affects agents created after you save. Drawdown cap, fees,
+              slippage, min trades, and the evaluation window apply on the next trade or eligibility check.
+            </p>
+
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save evaluation rules"}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1" />
+    </div>
+  );
 }
 
 export function SettingsPanel({
@@ -138,6 +343,10 @@ export function SettingsPanel({
           <TabsTrigger value="integrations" className="shrink-0 gap-2">
             <Cloud className="h-4 w-4" />
             Integrations
+          </TabsTrigger>
+          <TabsTrigger value="evaluation" className="shrink-0 gap-2">
+            <Trophy className="h-4 w-4" />
+            Track 1
           </TabsTrigger>
         </TabsList>
 
@@ -340,6 +549,10 @@ export function SettingsPanel({
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="evaluation">
+          <EvaluationRulesSettings />
         </TabsContent>
       </Tabs>
     </div>

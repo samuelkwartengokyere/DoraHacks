@@ -144,7 +144,8 @@ SignalForge implements the Track 1 scoring rules in-app:
 | **Max drawdown cap** | Default 30% (`EVALUATION_MAX_DRAWDOWN_PERCENT`) — exceeding it disqualifies the agent |
 | **Minimum trade count** | Default 5 (`EVALUATION_MIN_TRADE_COUNT`) — required for leaderboard eligibility |
 | **Transaction costs** | Fees + slippage on every fill (`EVALUATION_FEE_BPS`, `EVALUATION_SLIPPAGE_BPS`) |
-| **Autonomous execution** | **Start monitor** auto-executes on signal change when `EVALUATION_AUTO_EXECUTE=true` |
+| **Configure rules in UI** | **Settings → Track 1** — save judge-provided figures (stored in MongoDB, overrides env) |
+| **Autonomous execution** | **Start monitor** auto-executes on signal change when `autoExecute` is enabled |
 
 Leaderboard: `GET /api/evaluation/leaderboard` · Config: `GET /api/evaluation/config`
 

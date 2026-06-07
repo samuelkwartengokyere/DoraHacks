@@ -1,13 +1,36 @@
 const express = require("express");
 const auth = require("../middleware/auth");
 const evaluationService = require("../services/evaluationService");
-const { getEvaluationConfig } = require("../config/evaluationConfig");
+const evaluationSettingsService = require("../services/evaluationSettingsService");
 const Agent = require("../models/Agent");
 
 const router = express.Router();
 
 router.get("/config", (_req, res) => {
-  res.json({ success: true, config: getEvaluationConfig() });
+  res.json({ success: true, config: evaluationSettingsService.getEvaluationConfig() });
+});
+
+router.get("/settings", auth, async (_req, res) => {
+  try {
+    const data = await evaluationSettingsService.getEvaluationSettingsForAdmin();
+    res.json({ success: true, ...data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/settings", auth, async (req, res) => {
+  try {
+    const result = await evaluationSettingsService.updateEvaluationSettings(req.admin.id, req.body);
+    res.json({
+      success: true,
+      config: result.config,
+      source: result.source,
+      message: "Track 1 evaluation rules updated. New starting capital applies to agents created after this save.",
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
 });
 
 router.get("/leaderboard", auth, async (req, res) => {
@@ -21,7 +44,7 @@ router.get("/leaderboard", auth, async (req, res) => {
 
     res.json({
       success: true,
-      config: getEvaluationConfig(),
+      config: evaluationSettingsService.getEvaluationConfig(),
       entries,
     });
   } catch (error) {
