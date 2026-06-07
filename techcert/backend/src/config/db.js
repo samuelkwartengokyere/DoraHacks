@@ -1,11 +1,23 @@
 const mongoose = require("mongoose");
 
+function normalizeMongoUri(raw) {
+  if (!raw) return raw;
+  let uri = raw.trim();
+  if (
+    (uri.startsWith('"') && uri.endsWith('"')) ||
+    (uri.startsWith("'") && uri.endsWith("'"))
+  ) {
+    uri = uri.slice(1, -1).trim();
+  }
+  return uri;
+}
+
 async function connectDB() {
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
 
-  const uri = process.env.MONGODB_URI?.trim();
+  const uri = normalizeMongoUri(process.env.MONGODB_URI);
   const onVercel = Boolean(process.env.VERCEL);
 
   if (!uri) {
@@ -26,6 +38,12 @@ async function connectDB() {
     return mongoose.connection;
   } catch (error) {
     console.error("MongoDB connection error:", error.message);
+    if (error.message.includes("bad auth")) {
+      throw new Error(
+        "MongoDB connection failed: bad auth : authentication failed. " +
+          "Re-copy MONGODB_URI from Atlas into the backend Vercel project (no quotes), then redeploy."
+      );
+    }
     throw new Error(`MongoDB connection failed: ${error.message}`);
   }
 }
