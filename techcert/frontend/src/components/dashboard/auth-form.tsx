@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,10 @@ import { api } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
+import {
+  GoogleSignInButton,
+  isGoogleSignInConfigured,
+} from "@/components/dashboard/google-sign-in-button";
 
 interface AuthFormProps {
   onSuccess: () => void;
@@ -49,6 +53,22 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
     setMode(next);
     setError("");
   }
+
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    setError("");
+    setLoading(true);
+
+    try {
+      await api.loginWithGoogle(credential);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [onSuccess]);
+
+  const googleEnabled = isGoogleSignInConfigured();
 
   return (
     <Card className="w-full border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
@@ -154,6 +174,27 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
             )}
           </Button>
         </form>
+
+        {googleEnabled && (
+          <>
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-200 dark:border-slate-600" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+                  Or continue with
+                </span>
+              </div>
+            </div>
+
+            <GoogleSignInButton
+              mode={mode}
+              disabled={loading}
+              onCredential={handleGoogleCredential}
+            />
+          </>
+        )}
 
         <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
           <Link href="/" className="text-amber-600 hover:underline dark:text-amber-400">

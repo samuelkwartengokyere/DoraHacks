@@ -1,6 +1,11 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/Admin");
+const {
+  isGoogleAuthConfigured,
+  verifyGoogleCredential,
+  findOrCreateGoogleUser,
+} = require("../services/googleAuthService");
 
 const router = express.Router();
 
@@ -65,6 +70,13 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid credentials." });
     }
 
+    if (admin.authProvider === "google") {
+      return res.status(401).json({
+        success: false,
+        message: "This account uses Google sign-in. Continue with Google instead.",
+      });
+    }
+
     const isMatch = await admin.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: "Invalid credentials." });
@@ -79,6 +91,43 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/google/config", (_req, res) => {
+  res.json({
+    success: true,
+    enabled: isGoogleAuthConfigured(),
+  });
+});
+
+router.post("/google", async (req, res) => {
+  try {
+    if (!isGoogleAuthConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: "Google sign-in is not configured on the server.",
+      });
+    }
+
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ success: false, message: "Google credential is required." });
+    }
+
+    const profile = await verifyGoogleCredential(credential);
+    const admin = await findOrCreateGoogleUser(profile);
+    const token = signToken(admin);
+
+    res.json({
+      success: true,
+      token,
+      admin: formatUser(admin),
+    });
+  } catch (error) {
+    const message = error.message || "Google sign-in failed.";
+    const status = message.includes("not configured") ? 503 : 401;
+    res.status(status).json({ success: false, message });
   }
 });
 

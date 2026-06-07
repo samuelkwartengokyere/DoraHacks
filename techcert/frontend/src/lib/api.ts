@@ -365,6 +365,21 @@ class ApiClient {
     return data;
   }
 
+  async loginWithGoogle(credential: string) {
+    const data = await this.request<{
+      success: boolean;
+      token: string;
+      admin: AuthUser;
+    }>("/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    this.setToken(data.token);
+    this.setUser(data.admin);
+    return data;
+  }
+
   logout() {
     this.setToken(null);
     this.setUser(null);

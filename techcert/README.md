@@ -129,6 +129,24 @@ On first run with an empty database, a default operator is seeded from `backend/
 
 You can also **Register** a new account from the login screen.
 
+#### Google Sign-In (optional)
+
+To enable **Sign in with Google** on the admin login screen:
+
+1. Create an OAuth 2.0 **Web application** client in [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+2. Add authorized JavaScript origins (e.g. `http://localhost:3000`, your production frontend URL).
+3. Set the same client ID in both env files:
+
+```env
+# backend/.env
+GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+
+# frontend/.env.local
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+```
+
+Google sign-in creates an account on first use or links to an existing account with the same verified email.
+
 Landing page (no login): http://localhost:3000
 
 ---
