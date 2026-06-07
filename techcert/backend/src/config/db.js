@@ -1,16 +1,5 @@
 const mongoose = require("mongoose");
-
-function normalizeMongoUri(raw) {
-  if (!raw) return raw;
-  let uri = raw.trim();
-  if (
-    (uri.startsWith('"') && uri.endsWith('"')) ||
-    (uri.startsWith("'") && uri.endsWith("'"))
-  ) {
-    uri = uri.slice(1, -1).trim();
-  }
-  return uri;
-}
+const { normalizeMongoUri } = require("../utils/mongoConfig");
 
 async function connectDB() {
   if (mongoose.connection.readyState === 1) {

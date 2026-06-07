@@ -1,7 +1,9 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const connectDB = require("./config/db");
 const { ensureReady } = require("./bootstrap");
+const { getMongoConfigSummary } = require("./utils/mongoConfig");
 
 const authRoutes = require("./routes/auth");
 const statusRoutes = require("./routes/status");
@@ -30,6 +32,35 @@ app.get("/api/health", (_req, res) => {
     service: "SignalForge AI API",
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get("/api/health/db", async (_req, res) => {
+  const config = getMongoConfigSummary();
+
+  if (!config.configured) {
+    return res.status(503).json({
+      connected: false,
+      config,
+      message: "MONGODB_URI is not set on this deployment.",
+    });
+  }
+
+  try {
+    await connectDB();
+    res.json({
+      connected: true,
+      config,
+      message: "MongoDB connection successful.",
+    });
+  } catch (error) {
+    res.status(503).json({
+      connected: false,
+      config,
+      message: error.message,
+      hint:
+        "Compare user/host/passwordLength with Atlas. If they differ, fix MONGODB_URI on the backend Vercel project and redeploy.",
+    });
+  }
 });
 
 app.use(async (_req, res, next) => {
