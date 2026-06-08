@@ -131,6 +131,22 @@
   }
 }
 
+@keyframes install-fab-shrink-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 8px 20px -6px rgb(245 158 11 / 0.5),
+      0 0 0 0 rgb(245 158 11 / 0.4);
+  }
+  50% {
+    transform: translateY(-5px) scale(1.06);
+    box-shadow:
+      0 14px 28px -8px rgb(245 158 11 / 0.55),
+      0 0 0 8px rgb(245 158 11 / 0);
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -146,6 +162,7 @@
   --animate-install-fab-enter: install-fab-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   --animate-install-fab-glow: install-fab-glow 2.8s ease-in-out infinite;
   --animate-install-sheet-up: install-sheet-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  --animate-install-fab-shrink-pulse: install-fab-shrink-pulse 2.2s ease-in-out infinite;
 }
 
 body {

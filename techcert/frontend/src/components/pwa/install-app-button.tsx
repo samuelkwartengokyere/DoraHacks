@@ -8,12 +8,15 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { usePwaInstall } from "@/components/pwa/pwa-install-provider";
 import { canOfferInstall } from "@/lib/pwa/install";
 import { cn } from "@/lib/utils";
+
+const SHRINK_DELAY_MS = 1000;
+const SHRINK_DURATION_MS = 500;
 
 const iosSteps = [
   {
@@ -54,8 +57,23 @@ export function InstallAppFloatingButton() {
   const { deferredPrompt, isMobile, isIOS, isStandalone, promptInstall } =
     usePwaInstall();
   const [showGuide, setShowGuide] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
+  const [compactMotion, setCompactMotion] = useState(false);
 
   const canInstall = canOfferInstall(isMobile, isStandalone);
+
+  useEffect(() => {
+    const shrinkTimer = window.setTimeout(() => setIsCompact(true), SHRINK_DELAY_MS);
+    const motionTimer = window.setTimeout(
+      () => setCompactMotion(true),
+      SHRINK_DELAY_MS + SHRINK_DURATION_MS
+    );
+
+    return () => {
+      window.clearTimeout(shrinkTimer);
+      window.clearTimeout(motionTimer);
+    };
+  }, []);
 
   if (!canInstall) return null;
 
@@ -76,7 +94,7 @@ export function InstallAppFloatingButton() {
         className={cn(
           "fixed right-4 z-40 md:hidden",
           "bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))]",
-          "motion-safe:animate-install-fab-enter"
+          !isCompact && "motion-safe:animate-install-fab-enter"
         )}
       >
         <button
@@ -84,29 +102,61 @@ export function InstallAppFloatingButton() {
           onClick={handleClick}
           aria-label="Install SignalForge on your phone"
           className={cn(
-            "group relative flex w-[min(17rem,calc(100vw-2rem))] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border border-white/25 px-3.5 py-3 text-left",
-            "bg-linear-to-br from-amber-500 via-amber-500 to-orange-600 text-white",
+            "group relative flex cursor-pointer items-center overflow-hidden border border-white/25 text-left text-white",
+            "bg-linear-to-br from-amber-500 via-amber-500 to-orange-600",
             "shadow-[0_12px_28px_-8px_rgba(245,158,11,0.55)]",
-            "transition-transform duration-200 motion-safe:animate-install-fab-glow",
-            "hover:scale-[1.02] hover:from-amber-400 hover:to-orange-500",
+            "transition-[width,height,padding,border-radius,gap,transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "hover:from-amber-400 hover:to-orange-500",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950",
-            "motion-safe:active:scale-[0.98]"
+            "motion-safe:active:scale-[0.96]",
+            isCompact
+              ? cn(
+                  "h-14 w-14 justify-center rounded-full p-0",
+                  compactMotion && "motion-safe:animate-install-fab-shrink-pulse",
+                  !compactMotion && "motion-safe:animate-install-fab-glow"
+                )
+              : cn(
+                  "w-[min(17rem,calc(100vw-2rem))] gap-3 rounded-2xl px-3.5 py-3",
+                  "motion-safe:animate-install-fab-glow",
+                  "hover:scale-[1.02]"
+                )
           )}
         >
           <span
             aria-hidden
-            className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/15 blur-2xl transition-opacity group-hover:opacity-90"
+            className={cn(
+              "pointer-events-none absolute rounded-full bg-white/15 blur-2xl transition-all duration-500",
+              isCompact
+                ? "-right-4 -top-4 h-16 w-16 opacity-80"
+                : "-right-6 -top-8 h-24 w-24 group-hover:opacity-90"
+            )}
           />
           <span
             aria-hidden
-            className="pointer-events-none absolute -bottom-10 -left-4 h-20 w-20 rounded-full bg-orange-300/20 blur-xl"
+            className={cn(
+              "pointer-events-none absolute rounded-full bg-orange-300/20 blur-xl transition-all duration-500",
+              isCompact ? "-bottom-6 -left-3 h-14 w-14" : "-bottom-10 -left-4 h-20 w-20"
+            )}
           />
 
-          <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/15 shadow-inner backdrop-blur-sm">
-            <LogoMark size={28} className="rounded-md" />
+          <span
+            className={cn(
+              "relative flex shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/15 shadow-inner backdrop-blur-sm transition-all duration-500",
+              isCompact ? "h-10 w-10 rounded-full" : "h-11 w-11"
+            )}
+          >
+            <LogoMark
+              size={isCompact ? 24 : 28}
+              className={cn("rounded-md transition-all duration-500", isCompact && "rounded-full")}
+            />
           </span>
 
-          <span className="relative min-w-0 flex-1">
+          <span
+            className={cn(
+              "relative min-w-0 overflow-hidden transition-all duration-500",
+              isCompact ? "max-w-0 flex-none opacity-0" : "max-w-full flex-1 opacity-100"
+            )}
+          >
             <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100/90">
               <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
               Free install
@@ -119,8 +169,18 @@ export function InstallAppFloatingButton() {
             </span>
           </span>
 
-          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 backdrop-blur-sm transition-transform group-hover:translate-y-0.5">
-            <Download className="h-4 w-4" aria-hidden />
+          <span
+            className={cn(
+              "relative flex shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 backdrop-blur-sm transition-all duration-500",
+              isCompact
+                ? "pointer-events-none absolute -bottom-0.5 -right-0.5 h-5 w-5 border-amber-200/40 bg-amber-400"
+                : "h-9 w-9 group-hover:translate-y-0.5"
+            )}
+          >
+            <Download
+              className={cn("transition-all duration-500", isCompact ? "h-2.5 w-2.5" : "h-4 w-4")}
+              aria-hidden
+            />
           </span>
         </button>
       </div>
