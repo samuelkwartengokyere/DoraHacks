@@ -80,7 +80,7 @@ export function DashboardMobileNav({
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-800 px-5 py-4">
           <span className="font-semibold text-white">Menu</span>
           <button onClick={onClose} className="cursor-pointer rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close menu">
             <X className="h-5 w-5" />
@@ -107,8 +107,8 @@ function SidebarContent({
   const initial = (user?.name?.[0] || user?.email?.[0] || "U").toUpperCase();
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-slate-800 px-5 py-5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-slate-800 px-5 py-5">
         <div className="flex items-center gap-3">
           <LogoMark size="md" />
           <div>
@@ -118,7 +118,7 @@ function SidebarContent({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4">
         <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           Agent Stack
         </p>
@@ -146,7 +146,7 @@ function SidebarContent({
         </nav>
       </div>
 
-      <div className="mt-auto border-t border-slate-800 p-4">
+      <div className="mt-auto shrink-0 border-t border-slate-800 p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
         <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-900 px-3 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-600 text-sm font-bold text-white">
             {initial}
