@@ -16,7 +16,7 @@ import { canOfferInstall } from "@/lib/pwa/install";
 import { cn } from "@/lib/utils";
 
 const SHRINK_DELAY_MS = 1000;
-const SHRINK_DURATION_MS = 500;
+const SHRINK_DURATION_MS = 5000;
 
 const iosSteps = [
   {
@@ -105,7 +105,7 @@ export function InstallAppFloatingButton() {
             "group relative flex cursor-pointer items-center overflow-hidden border border-white/25 text-left text-white",
             "bg-linear-to-br from-amber-500 via-amber-500 to-orange-600",
             "shadow-[0_12px_28px_-8px_rgba(245,158,11,0.55)]",
-            "transition-[width,height,padding,border-radius,gap,transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "transition-[width,height,padding,border-radius,gap,transform,box-shadow] duration-[5000ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
             "hover:from-amber-400 hover:to-orange-500",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950",
             "motion-safe:active:scale-[0.96]",
@@ -125,7 +125,7 @@ export function InstallAppFloatingButton() {
           <span
             aria-hidden
             className={cn(
-              "pointer-events-none absolute rounded-full bg-white/15 blur-2xl transition-all duration-500",
+              "pointer-events-none absolute rounded-full bg-white/15 blur-2xl transition-all duration-[5000ms]",
               isCompact
                 ? "-right-4 -top-4 h-16 w-16 opacity-80"
                 : "-right-6 -top-8 h-24 w-24 group-hover:opacity-90"
@@ -134,26 +134,26 @@ export function InstallAppFloatingButton() {
           <span
             aria-hidden
             className={cn(
-              "pointer-events-none absolute rounded-full bg-orange-300/20 blur-xl transition-all duration-500",
+              "pointer-events-none absolute rounded-full bg-orange-300/20 blur-xl transition-all duration-[5000ms]",
               isCompact ? "-bottom-6 -left-3 h-14 w-14" : "-bottom-10 -left-4 h-20 w-20"
             )}
           />
 
           <span
             className={cn(
-              "relative flex shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/15 shadow-inner backdrop-blur-sm transition-all duration-500",
+              "relative flex shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/15 shadow-inner backdrop-blur-sm transition-all duration-[5000ms]",
               isCompact ? "h-10 w-10 rounded-full" : "h-11 w-11"
             )}
           >
             <LogoMark
               size={isCompact ? 24 : 28}
-              className={cn("rounded-md transition-all duration-500", isCompact && "rounded-full")}
+              className={cn("rounded-md transition-all duration-[5000ms]", isCompact && "rounded-full")}
             />
           </span>
 
           <span
             className={cn(
-              "relative min-w-0 overflow-hidden transition-all duration-500",
+              "relative min-w-0 overflow-hidden transition-all duration-[5000ms]",
               isCompact ? "max-w-0 flex-none opacity-0" : "max-w-full flex-1 opacity-100"
             )}
           >
@@ -171,16 +171,13 @@ export function InstallAppFloatingButton() {
 
           <span
             className={cn(
-              "relative flex shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 backdrop-blur-sm transition-all duration-500",
+              "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/25 bg-white/15 backdrop-blur-sm transition-all duration-[5000ms]",
               isCompact
-                ? "pointer-events-none absolute -bottom-0.5 -right-0.5 h-5 w-5 border-amber-200/40 bg-amber-400"
-                : "h-9 w-9 group-hover:translate-y-0.5"
+                ? "max-h-0 max-w-0 border-0 p-0 opacity-0"
+                : "h-9 w-9 opacity-100 group-hover:translate-y-0.5"
             )}
           >
-            <Download
-              className={cn("transition-all duration-500", isCompact ? "h-2.5 w-2.5" : "h-4 w-4")}
-              aria-hidden
-            />
+            <Download className="h-4 w-4" aria-hidden />
           </span>
         </button>
       </div>
