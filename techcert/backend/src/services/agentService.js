@@ -318,6 +318,43 @@ class AgentService {
     return trade;
   }
 
+  async deleteAgent(agentId, ownerId) {
+    const agent = await this.getAgentForOwner(agentId, ownerId);
+
+    if (agent.isAutomated) {
+      agent.isAutomated = false;
+      agent.status = "idle";
+      agent.automatedStartedAt = null;
+      await agent.save();
+    }
+
+    const openTrades = await Trade.find({ agentId: agent._id, status: "open" });
+    for (const trade of openTrades) {
+      if (trade.action === "BUY" && (agent.evaluation?.positionQty ?? 0) > 0) {
+        let exitPrice = trade.priceUsd;
+        try {
+          const signal = await cmcService.getTradingSignal(trade.symbol);
+          exitPrice = signal.metrics?.priceUsd ?? exitPrice;
+        } catch {
+          // keep entry price as fallback
+        }
+
+        await evaluationService.revertBuy(agent, {
+          amountUsd: trade.amountUsd,
+          priceUsd: exitPrice,
+          feeUsd: trade.feeUsd ?? 0,
+          slippageUsd: trade.slippageUsd ?? 0,
+          quantity: trade.quantity ?? 0,
+        });
+      }
+    }
+
+    const tradesDeleted = await Trade.deleteMany({ agentId: agent._id });
+    await Agent.deleteOne({ _id: agent._id });
+
+    return { deletedId: agentId, tradesDeleted: tradesDeleted.deletedCount };
+  }
+
   async cancelTrade(tradeId, ownerId) {
     const trade = await this.getTradeForOwner(tradeId, ownerId);
 

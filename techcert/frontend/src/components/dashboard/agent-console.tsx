@@ -17,6 +17,7 @@ import {
   Plus,
   RefreshCw,
   Square,
+  Trash2,
   XCircle,
   Zap,
 } from "lucide-react";
@@ -429,6 +430,34 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
     }
   }
 
+  async function handleDeleteAgent(agent: Agent) {
+    const openCount = trades.filter(
+      (t) => isOpenTrade(t) && tradeAgentId(t) === agent._id,
+    ).length;
+    const message =
+      openCount > 0
+        ? `Delete "${agent.name}"? This stops monitoring, closes ${openCount} open trade(s), and removes all history for this agent.`
+        : `Delete "${agent.name}"? This stops monitoring and removes all trade history for this agent.`;
+
+    if (!window.confirm(message)) return;
+
+    setActionId(agent._id);
+    setError("");
+    setLastResult("");
+    try {
+      const result = await api.deleteAgent(agent._id);
+      setActiveTab(CREATE_TAB);
+      setLastResult(
+        `Agent deleted${result.tradesDeleted > 0 ? ` (${result.tradesDeleted} trade log entries removed)` : ""}.`,
+      );
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete agent");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -545,11 +574,24 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
           activeTab === agent._id ? (
             <TabsContent key={agent._id} value={agent._id}>
               <Card>
-                <CardHeader>
-                  <CardTitle>{agent.name}</CardTitle>
-                  <CardDescription>
-                    Signal monitor and trade controls for this agent
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                  <div className="min-w-0">
+                    <CardTitle>{agent.name}</CardTitle>
+                    <CardDescription>
+                      Signal monitor and trade controls for this agent
+                    </CardDescription>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+                    disabled={actionId === agent._id}
+                    onClick={() => handleDeleteAgent(agent)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <AgentTabPanel

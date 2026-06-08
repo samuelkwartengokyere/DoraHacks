@@ -467,6 +467,13 @@ class ApiClient {
     );
   }
 
+  async deleteAgent(agentId: string) {
+    return this.request<{ success: boolean; deletedId: string; tradesDeleted: number }>(
+      `/agents/${agentId}`,
+      { method: "DELETE" }
+    );
+  }
+
   async getTrades() {
     return this.request<{ success: boolean; trades: Trade[] }>("/trades");
   }
