@@ -31,9 +31,19 @@ export function ContactSection() {
             </CardHeader>
             <CardContent>
               {submitted ? (
-                <p className="motion-safe:animate-fade-in text-center text-green-600 dark:text-green-400">
-                  Thank you! We&apos;ll be in touch shortly.
-                </p>
+                <div className="space-y-4 text-center">
+                  <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+                    Thank you! We&apos;ll be in touch shortly.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setSubmitted(false)}
+                  >
+                    Send another message
+                  </Button>
+                </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>

@@ -63,10 +63,11 @@ export function AnimatedSection({
     <Tag
       ref={ref}
       className={cn(
-        "motion-safe:opacity-0",
+        !visible && "motion-safe:opacity-0",
         visible && animationClass[animation],
         visible && delayClass[delay],
         visible && "animate-fill-both",
+        visible && "opacity-100",
         className
       )}
     >
