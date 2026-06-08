@@ -2,6 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/Admin");
 const {
+  getGoogleClientId,
   isGoogleAuthConfigured,
   verifyGoogleCredential,
   findOrCreateGoogleUser,
@@ -95,9 +96,11 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/google/config", (_req, res) => {
+  const clientId = getGoogleClientId();
   res.json({
     success: true,
-    enabled: isGoogleAuthConfigured(),
+    enabled: Boolean(clientId),
+    clientId: clientId || null,
   });
 });
 

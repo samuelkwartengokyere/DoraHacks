@@ -380,6 +380,15 @@ class ApiClient {
     return data;
   }
 
+  async getGoogleAuthConfig() {
+    const response = await fetch(`${API_URL}/auth/google/config`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to load Google sign-in config");
+    }
+    return data as { success: boolean; enabled: boolean; clientId: string | null };
+  }
+
   logout() {
     this.setToken(null);
     this.setUser(null);

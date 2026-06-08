@@ -67,7 +67,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
 
   const handleGoogleUnavailable = useCallback(() => {
     setError(
-      "Google sign-in is not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID in frontend/.env.local and GOOGLE_CLIENT_ID in backend/.env, then restart the app.",
+      "Google sign-in is not available. Ensure GOOGLE_CLIENT_ID is set in backend/.env, the backend is running, and you restarted the app after changing env files.",
     );
   }, []);
 
@@ -188,7 +188,6 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
         </div>
 
         <GoogleSignInButton
-          mode={mode}
           disabled={loading}
           onCredential={handleGoogleCredential}
           onUnavailable={handleGoogleUnavailable}

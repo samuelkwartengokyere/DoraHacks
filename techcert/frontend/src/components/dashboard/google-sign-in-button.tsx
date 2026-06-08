@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+const ENV_GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 type GoogleCredentialResponse = {
   credential?: string;
@@ -42,7 +43,6 @@ declare global {
 }
 
 interface GoogleSignInButtonProps {
-  mode: "login" | "register";
   disabled?: boolean;
   onCredential: (credential: string) => void | Promise<void>;
   onUnavailable?: () => void;
@@ -97,15 +97,43 @@ function GoogleFallbackButton({
 }
 
 export function GoogleSignInButton({
-  mode,
   disabled = false,
   onCredential,
   onUnavailable,
 }: GoogleSignInButtonProps) {
   const buttonRef = useRef<HTMLDivElement>(null);
+  const [clientId, setClientId] = useState(ENV_GOOGLE_CLIENT_ID);
+  const [configLoading, setConfigLoading] = useState(!ENV_GOOGLE_CLIENT_ID);
   const [scriptReady, setScriptReady] = useState(false);
   const [renderError, setRenderError] = useState("");
-  const isConfigured = Boolean(GOOGLE_CLIENT_ID);
+
+  useEffect(() => {
+    if (ENV_GOOGLE_CLIENT_ID) return;
+
+    let cancelled = false;
+
+    api
+      .getGoogleAuthConfig()
+      .then((config) => {
+        if (!cancelled && config.clientId) {
+          setClientId(config.clientId);
+        }
+      })
+      .catch(() => {
+        // Backend unreachable — fall through to unavailable state.
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setConfigLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isConfigured = Boolean(clientId);
 
   useEffect(() => {
     if (!isConfigured || !scriptReady || !buttonRef.current || disabled) return;
@@ -120,7 +148,7 @@ export function GoogleSignInButton({
     buttonRef.current.innerHTML = "";
 
     google.initialize({
-      client_id: GOOGLE_CLIENT_ID,
+      client_id: clientId,
       callback: (response) => {
         if (response.credential) {
           void onCredential(response.credential);
@@ -138,7 +166,16 @@ export function GoogleSignInButton({
       width: buttonRef.current.offsetWidth || 320,
       logo_alignment: "left",
     });
-  }, [disabled, isConfigured, mode, onCredential, scriptReady]);
+  }, [clientId, disabled, isConfigured, onCredential, scriptReady]);
+
+  if (configLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-2.5 text-sm text-gray-500 dark:text-slate-400">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading Google sign-in...
+      </div>
+    );
+  }
 
   if (!isConfigured) {
     return (
