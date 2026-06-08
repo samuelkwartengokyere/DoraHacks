@@ -590,8 +590,9 @@ class ApiClient {
     return this.request<{ success: boolean; signal: TradingSignal }>(`/agents/signals/${symbol}`);
   }
 
-  async getMarketCandles(symbol = "BNB", limit = 168, interval = "1h") {
+  async getMarketCandles(symbol = "BNB", limit = 168, interval = "1h", endTime?: number) {
     const params = new URLSearchParams({ symbol, limit: String(limit), interval });
+    if (endTime != null) params.set("endTime", String(endTime));
     return this.request<{
       success: boolean;
       symbol: string;
@@ -614,7 +615,8 @@ export async function fetchMarketCandles(
   symbol = "BNB",
   limit = 168,
   interval = "1h",
+  endTime?: number,
 ) {
-  const data = await api.getMarketCandles(symbol, limit, interval);
+  const data = await api.getMarketCandles(symbol, limit, interval, endTime);
   return data.candles;
 }

@@ -4,6 +4,8 @@ const cmcService = require("./cmcService");
 class StrategyService {
   intervalMs(interval = "1h") {
     const map = {
+      "1m": 60_000,
+      "5m": 5 * 60_000,
       "15m": 15 * 60_000,
       "1h": 60 * 60_000,
       "2h": 2 * 60 * 60_000,
@@ -13,12 +15,15 @@ class StrategyService {
     return map[interval] || map["1h"];
   }
 
-  async fetchKlines(symbol = "BNB", interval = "1h", limit = 168) {
+  async fetchKlines(symbol = "BNB", interval = "1h", limit = 168, { endTime } = {}) {
     const pair = symbol.toUpperCase() === "BNB" ? "BNBUSDT" : `${symbol.toUpperCase()}USDT`;
 
     try {
+      const params = { symbol: pair, interval, limit };
+      if (endTime) params.endTime = endTime;
+
       const response = await axios.get("https://api.binance.com/api/v3/klines", {
-        params: { symbol: pair, interval, limit },
+        params,
         timeout: 15000,
       });
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchMarketCandles } from "@/lib/api";
+import { attachMovingAverages } from "@/lib/chart-ma";
 import {
   candleLimitForInterval,
   type ChartInterval,
@@ -13,6 +14,9 @@ export interface LiveTickerSnapshot {
   change24hPct: number;
   volume24h: number;
 }
+
+const FAST_MA = 9;
+const SLOW_MA = 21;
 
 function streamSymbol(symbol: string) {
   const base = symbol.toUpperCase() === "BNB" ? "bnb" : symbol.toLowerCase();
@@ -39,14 +43,34 @@ function klineToCandle(k: BinanceKline): BrokerCandle {
   };
 }
 
+function withMa(candles: BrokerCandle[]): BrokerCandle[] {
+  return attachMovingAverages(candles, FAST_MA, SLOW_MA);
+}
+
+function mergeCandleLists(existing: BrokerCandle[], incoming: BrokerCandle[]): BrokerCandle[] {
+  const map = new Map<number, BrokerCandle>();
+  for (const candle of existing) map.set(candle.time, candle);
+  for (const candle of incoming) map.set(candle.time, candle);
+  return [...map.values()].sort((a, b) => a.time - b.time);
+}
+
 export function useLiveCandles(symbol = "BNB", interval: ChartInterval = "1h") {
   const limit = candleLimitForInterval(interval);
   const [candles, setCandles] = useState<BrokerCandle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [ticker, setTicker] = useState<LiveTickerSnapshot | null>(null);
   const candlesRef = useRef<BrokerCandle[]>([]);
+  const loadingMoreRef = useRef(false);
+
+  const applyCandles = useCallback((next: BrokerCandle[]) => {
+    const withMovingAverages = withMa(next);
+    candlesRef.current = withMovingAverages;
+    setCandles(withMovingAverages);
+  }, []);
 
   const mergeCandle = useCallback(
     (incoming: BrokerCandle) => {
@@ -58,16 +82,16 @@ export function useLiveCandles(symbol = "BNB", interval: ChartInterval = "1h") {
           next[idx] = { ...next[idx], ...incoming };
         } else if (next.length === 0 || incoming.time > next[next.length - 1].time) {
           next.push(incoming);
-          while (next.length > limit) next.shift();
         } else {
           return prev;
         }
 
-        candlesRef.current = next;
-        return next;
+        const withMovingAverages = withMa(next);
+        candlesRef.current = withMovingAverages;
+        return withMovingAverages;
       });
     },
-    [limit],
+    [],
   );
 
   const patchLastPrice = useCallback((price: number) => {
@@ -78,11 +102,40 @@ export function useLiveCandles(symbol = "BNB", interval: ChartInterval = "1h") {
       last.close = price;
       last.high = Math.max(last.high, price);
       last.low = Math.min(last.low, price);
-      next[next.length - 1] = last;
-      candlesRef.current = next;
-      return next;
+      const withMovingAverages = withMa(next);
+      candlesRef.current = withMovingAverages;
+      return withMovingAverages;
     });
   }, []);
+
+  const loadMoreHistory = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreHistory || candlesRef.current.length === 0) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const first = candlesRef.current[0];
+      const older = await fetchMarketCandles(symbol, limit, interval, first.time - 1);
+      if (older.length === 0) {
+        setHasMoreHistory(false);
+        return;
+      }
+
+      const merged = mergeCandleLists(candlesRef.current, older);
+      applyCandles(merged);
+      if (older.length < limit) {
+        setHasMoreHistory(false);
+      }
+    } catch {
+      // keep existing candles on history load failure
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [applyCandles, hasMoreHistory, interval, limit, symbol]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +146,7 @@ export function useLiveCandles(symbol = "BNB", interval: ChartInterval = "1h") {
     candlesRef.current = [];
     setConnected(false);
     setTicker(null);
+    setHasMoreHistory(true);
 
     async function bootstrap() {
       setLoading(true);
@@ -101,8 +155,8 @@ export function useLiveCandles(symbol = "BNB", interval: ChartInterval = "1h") {
       try {
         const data = await fetchMarketCandles(symbol, limit, interval);
         if (cancelled) return;
-        setCandles(data);
-        candlesRef.current = data;
+        applyCandles(data);
+        setHasMoreHistory(data.length >= limit);
         const last = data[data.length - 1];
         if (last) {
           setTicker({
@@ -179,7 +233,19 @@ export function useLiveCandles(symbol = "BNB", interval: ChartInterval = "1h") {
       ws?.close();
       setConnected(false);
     };
-  }, [symbol, interval, limit, mergeCandle, patchLastPrice]);
+  }, [symbol, interval, limit, mergeCandle, patchLastPrice, applyCandles]);
 
-  return { candles, loading, error, connected, interval, ticker };
+  return {
+    candles,
+    loading,
+    loadingMore,
+    error,
+    connected,
+    interval,
+    ticker,
+    loadMoreHistory,
+    hasMoreHistory,
+    fastMaPeriod: FAST_MA,
+    slowMaPeriod: SLOW_MA,
+  };
 }

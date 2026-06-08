@@ -25,7 +25,17 @@ export function TradeTimelineChart({
   onIntervalChange,
   highlightTradeId = null,
 }: TradeTimelineChartProps) {
-  const { candles, loading, error, connected, ticker } = useLiveCandles(symbol, interval);
+  const {
+    candles,
+    loading,
+    loadingMore,
+    error,
+    connected,
+    ticker,
+    loadMoreHistory,
+    fastMaPeriod,
+    slowMaPeriod,
+  } = useLiveCandles(symbol, interval);
 
   const executedTrades = useMemo(
     () => trades.filter(isExecutedChartTrade),
@@ -82,11 +92,17 @@ export function TradeTimelineChart({
       interval={intervalLabel(interval)}
       activeInterval={interval}
       onIntervalChange={onIntervalChange}
+      fastPeriod={fastMaPeriod}
+      slowPeriod={slowMaPeriod}
       markers={markers}
       highlightTradeId={highlightTradeId}
       live
       connected={connected}
       ticker={ticker}
+      showMa
+      loadingMore={loadingMore}
+      onNeedMoreHistory={loadMoreHistory}
+      height={480}
     />
   );
 }

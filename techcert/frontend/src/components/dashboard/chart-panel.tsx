@@ -150,7 +150,7 @@ export function ChartPanel({
           <CardHeader>
             <CardTitle>BNB/USDT · {intervalLabel(interval)}</CardTitle>
             <CardDescription>
-              Executed BUY/SELL markers on live candlesticks — green/red arrows with entry price lines
+              Live Binance candlesticks with volume, MA 9/21, zoom, fullscreen, and trade markers
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 sm:p-0">

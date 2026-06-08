@@ -14,7 +14,8 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { CHART_INTERVALS, type ChartInterval } from "@/lib/chart-intervals";
+import { Maximize2, Minimize2, Minus, Plus, RotateCcw, Target } from "lucide-react";
+import { CHART_INTERVALS, isShortInterval, type ChartInterval } from "@/lib/chart-intervals";
 import { cn } from "@/lib/utils";
 
 export interface BrokerCandle {
@@ -51,6 +52,9 @@ interface BrokerCandlestickChartProps {
   live?: boolean;
   connected?: boolean;
   ticker?: TickerSnapshot | null;
+  showMa?: boolean;
+  loadingMore?: boolean;
+  onNeedMoreHistory?: () => void;
 }
 
 interface OhlcLegend {
@@ -88,13 +92,20 @@ function formatVolume(value: number) {
   return value.toFixed(2);
 }
 
-function formatBarTime(timeMs: number) {
+function formatBarTime(timeMs: number, short = false) {
   return new Date(timeMs).toLocaleString(undefined, {
-    month: "short",
+    month: short ? undefined : "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    second: short ? "2-digit" : undefined,
   });
+}
+
+function maSeriesData(candles: BrokerCandle[], key: "fastMa" | "slowMa") {
+  return candles
+    .filter((c) => c[key] != null)
+    .map((c) => ({ time: toUtc(c.time), value: c[key] as number }));
 }
 
 const BULL = "#26a69a";
@@ -114,19 +125,31 @@ export function BrokerCandlestickChart({
   live = false,
   connected = false,
   ticker = null,
+  showMa = true,
+  loadingMore = false,
+  onNeedMoreHistory,
 }: BrokerCandlestickChartProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const fastMaSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const slowMaSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const priceLineRef = useRef<IPriceLine | null>(null);
   const entryLinesRef = useRef<IPriceLine[]>([]);
   const candlesRef = useRef<BrokerCandle[]>([]);
   const seededRef = useRef(false);
   const lastBarTimeRef = useRef<number | null>(null);
+  const firstBarTimeRef = useRef<number | null>(null);
+  const atRealtimeRef = useRef(true);
+  const historyRequestedRef = useRef(false);
   const [hoveredBar, setHoveredBar] = useState<OhlcLegend | null>(null);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [flashUp, setFlashUp] = useState<boolean | null>(null);
+  const [atRealtime, setAtRealtime] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [maVisible, setMaVisible] = useState(showMa);
   const prevCloseRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -219,8 +242,21 @@ export function BrokerCandlestickChart({
       timeScale: {
         borderColor: "#2a2e39",
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: activeInterval ? isShortInterval(activeInterval) : false,
         rightOffset: live ? 8 : 0,
+        barSpacing: 8,
+        minBarSpacing: 2,
+      },
+      handleScale: {
+        axisPressedMouseMove: { time: true, price: true },
+        mouseWheel: true,
+        pinch: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
       },
       rightPriceScale: {
         borderColor: "#2a2e39",
@@ -247,7 +283,7 @@ export function BrokerCandlestickChart({
     });
     candleSeriesRef.current = candleSeries;
 
-    const hasFastMa = candles.some((c) => c.fastMa != null);
+    const hasFastMa = maVisible && candles.some((c) => c.fastMa != null);
     if (hasFastMa) {
       const fastSeries = chart.addSeries(LineSeries, {
         color: "#2962ff",
@@ -257,14 +293,11 @@ export function BrokerCandlestickChart({
         lastValueVisible: false,
         crosshairMarkerVisible: false,
       });
-      fastSeries.setData(
-        candles
-          .filter((c) => c.fastMa != null)
-          .map((c) => ({ time: toUtc(c.time), value: c.fastMa as number })),
-      );
+      fastSeries.setData(maSeriesData(candles, "fastMa"));
+      fastMaSeriesRef.current = fastSeries;
     }
 
-    const hasSlowMa = candles.some((c) => c.slowMa != null);
+    const hasSlowMa = maVisible && candles.some((c) => c.slowMa != null);
     if (hasSlowMa) {
       const slowSeries = chart.addSeries(LineSeries, {
         color: "#e040fb",
@@ -274,11 +307,8 @@ export function BrokerCandlestickChart({
         lastValueVisible: false,
         crosshairMarkerVisible: false,
       });
-      slowSeries.setData(
-        candles
-          .filter((c) => c.slowMa != null)
-          .map((c) => ({ time: toUtc(c.time), value: c.slowMa as number })),
-      );
+      slowSeries.setData(maSeriesData(candles, "slowMa"));
+      slowMaSeriesRef.current = slowSeries;
     }
 
     const volumePane = chart.addPane();
@@ -309,6 +339,7 @@ export function BrokerCandlestickChart({
 
     seededRef.current = true;
     lastBarTimeRef.current = candles[candles.length - 1]?.time ?? null;
+    firstBarTimeRef.current = candles[0]?.time ?? null;
 
     if (live && lastCandle) {
       priceLineRef.current = candleSeries.createPriceLine({
@@ -374,7 +405,31 @@ export function BrokerCandlestickChart({
     chart.timeScale().fitContent();
     if (live) {
       chart.timeScale().scrollToRealTime();
+      atRealtimeRef.current = true;
+      setAtRealtime(true);
     }
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (!range) return;
+
+      const lastIndex = candlesRef.current.length - 1;
+      const following = lastIndex < 0 || range.to >= lastIndex - 2;
+      atRealtimeRef.current = following;
+      setAtRealtime(following);
+
+      if (
+        onNeedMoreHistory &&
+        range.from < 20 &&
+        !historyRequestedRef.current &&
+        candlesRef.current.length > 0
+      ) {
+        historyRequestedRef.current = true;
+        onNeedMoreHistory();
+        window.setTimeout(() => {
+          historyRequestedRef.current = false;
+        }, 1500);
+      }
+    });
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.time) {
@@ -421,12 +476,30 @@ export function BrokerCandlestickChart({
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      fastMaSeriesRef.current = null;
+      slowMaSeriesRef.current = null;
       priceLineRef.current = null;
       entryLinesRef.current = [];
       seededRef.current = false;
       lastBarTimeRef.current = null;
+      firstBarTimeRef.current = null;
+      atRealtimeRef.current = true;
+      historyRequestedRef.current = false;
     };
-  }, [hasData, height, markersKey, entryLinesKey, highlightTradeId, fastPeriod, slowPeriod, live, interval]);
+  }, [
+    hasData,
+    height,
+    markersKey,
+    entryLinesKey,
+    highlightTradeId,
+    fastPeriod,
+    slowPeriod,
+    live,
+    interval,
+    activeInterval,
+    maVisible,
+    onNeedMoreHistory,
+  ]);
 
   useEffect(() => {
     const candleSeries = candleSeriesRef.current;
@@ -437,11 +510,13 @@ export function BrokerCandlestickChart({
     }
 
     const last = candles[candles.length - 1];
+    const first = candles[0];
     const lastTime = toUtc(last.time);
     const liveClose = ticker?.lastPrice ?? last.close;
     const prevBarTime = lastBarTimeRef.current;
+    const historyPrepended = first?.time !== firstBarTimeRef.current;
 
-    if (prevBarTime == null || candles.length === 1) {
+    if (prevBarTime == null || candles.length === 1 || historyPrepended) {
       candleSeries.setData(
         candles.map((c) => ({
           time: toUtc(c.time),
@@ -458,7 +533,14 @@ export function BrokerCandlestickChart({
           color: c.close >= c.open ? "rgba(38, 166, 154, 0.55)" : "rgba(239, 83, 80, 0.55)",
         })),
       );
+      if (maVisible && fastMaSeriesRef.current) {
+        fastMaSeriesRef.current.setData(maSeriesData(candles, "fastMa"));
+      }
+      if (maVisible && slowMaSeriesRef.current) {
+        slowMaSeriesRef.current.setData(maSeriesData(candles, "slowMa"));
+      }
       lastBarTimeRef.current = last.time;
+      firstBarTimeRef.current = first?.time ?? null;
     } else if (last.time === prevBarTime) {
       candleSeries.update({
         time: lastTime,
@@ -472,6 +554,12 @@ export function BrokerCandlestickChart({
         value: last.volume ?? 0,
         color: liveClose >= last.open ? "rgba(38, 166, 154, 0.55)" : "rgba(239, 83, 80, 0.55)",
       });
+      if (maVisible && last.fastMa != null) {
+        fastMaSeriesRef.current?.update({ time: lastTime, value: last.fastMa });
+      }
+      if (maVisible && last.slowMa != null) {
+        slowMaSeriesRef.current?.update({ time: lastTime, value: last.slowMa });
+      }
     } else if (last.time > prevBarTime) {
       candleSeries.update({
         time: lastTime,
@@ -486,6 +574,12 @@ export function BrokerCandlestickChart({
         color: liveClose >= last.open ? "rgba(38, 166, 154, 0.55)" : "rgba(239, 83, 80, 0.55)",
       });
       lastBarTimeRef.current = last.time;
+      if (maVisible && fastMaSeriesRef.current) {
+        fastMaSeriesRef.current.setData(maSeriesData(candles, "fastMa"));
+      }
+      if (maVisible && slowMaSeriesRef.current) {
+        slowMaSeriesRef.current.setData(maSeriesData(candles, "slowMa"));
+      }
     }
 
     if (live && priceLineRef.current) {
@@ -493,9 +587,59 @@ export function BrokerCandlestickChart({
         price: liveClose,
         color: liveClose >= last.open ? BULL : BEAR,
       });
-      chart.timeScale().scrollToRealTime();
+      if (atRealtimeRef.current) {
+        chart.timeScale().scrollToRealTime();
+      }
     }
-  }, [candles, live, ticker?.lastPrice]);
+  }, [candles, live, ticker?.lastPrice, maVisible]);
+
+  function zoomChart(factor: number) {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const range = chart.timeScale().getVisibleLogicalRange();
+    if (!range) return;
+    const center = (range.from + range.to) / 2;
+    const span = Math.max(10, (range.to - range.from) * factor);
+    chart.timeScale().setVisibleLogicalRange({
+      from: center - span / 2,
+      to: center + span / 2,
+    });
+  }
+
+  function fitChart() {
+    chartRef.current?.timeScale().fitContent();
+  }
+
+  function goToRealtime() {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.timeScale().scrollToRealTime();
+    atRealtimeRef.current = true;
+    setAtRealtime(true);
+  }
+
+  async function toggleFullscreen() {
+    const el = rootRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      await el.requestFullscreen();
+      setFullscreen(true);
+    } else {
+      await document.exitFullscreen();
+      setFullscreen(false);
+    }
+  }
+
+  useEffect(() => {
+    function onFullscreenChange() {
+      setFullscreen(Boolean(document.fullscreenElement));
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      }
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   if (candles.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-slate-400">No chart data available.</p>;
@@ -513,13 +657,13 @@ export function BrokerCandlestickChart({
           : "text-[#ef5350]";
 
   const timeLabel = isHovering && hoveredTime
-    ? formatBarTime(hoveredTime)
+    ? formatBarTime(hoveredTime, activeInterval ? isShortInterval(activeInterval) : false)
     : lastCandle
-      ? formatBarTime(lastCandle.time)
+      ? formatBarTime(lastCandle.time, activeInterval ? isShortInterval(activeInterval) : false)
       : null;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#2a2e39] bg-[#131722]">
+    <div ref={rootRef} className="overflow-hidden rounded-lg border border-[#2a2e39] bg-[#131722]">
       <div className="border-b border-[#2a2e39] px-3 py-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -595,27 +739,95 @@ export function BrokerCandlestickChart({
           </div>
         )}
       </div>
-      {onIntervalChange && activeInterval && (
-        <div className="flex flex-wrap gap-1 border-b border-[#2a2e39] px-3 py-1.5">
-          {CHART_INTERVALS.map((item) => (
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2a2e39] px-3 py-1.5">
+        {onIntervalChange && activeInterval ? (
+          <div className="flex flex-wrap gap-1">
+            {CHART_INTERVALS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onIntervalChange(item.id)}
+                className={cn(
+                  "cursor-pointer rounded px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                  activeInterval === item.id
+                    ? "bg-[#2962ff] text-white"
+                    : "text-[#787b86] hover:bg-[#2a2e39] hover:text-[#d1d4dc]",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+
+        <div className="flex flex-wrap items-center gap-1">
+          {live && candles.some((c) => c.fastMa != null) && (
             <button
-              key={item.id}
               type="button"
-              onClick={() => onIntervalChange(item.id)}
+              onClick={() => setMaVisible((v) => !v)}
               className={cn(
-                "cursor-pointer rounded px-2.5 py-1 text-[11px] font-semibold transition-colors",
-                activeInterval === item.id
-                  ? "bg-[#2962ff] text-white"
-                  : "text-[#787b86] hover:bg-[#2a2e39] hover:text-[#d1d4dc]",
+                "cursor-pointer rounded px-2 py-1 text-[10px] font-semibold",
+                maVisible ? "bg-[#2a2e39] text-[#d1d4dc]" : "text-[#787b86] hover:bg-[#2a2e39]",
               )}
             >
-              {item.label}
+              MA
             </button>
-          ))}
+          )}
+          <button
+            type="button"
+            onClick={() => zoomChart(0.75)}
+            className="cursor-pointer rounded p-1.5 text-[#787b86] hover:bg-[#2a2e39] hover:text-[#d1d4dc]"
+            aria-label="Zoom in"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomChart(1.35)}
+            className="cursor-pointer rounded p-1.5 text-[#787b86] hover:bg-[#2a2e39] hover:text-[#d1d4dc]"
+            aria-label="Zoom out"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={fitChart}
+            className="cursor-pointer rounded p-1.5 text-[#787b86] hover:bg-[#2a2e39] hover:text-[#d1d4dc]"
+            aria-label="Fit chart"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+          {live && !atRealtime && (
+            <button
+              type="button"
+              onClick={goToRealtime}
+              className="flex cursor-pointer items-center gap-1 rounded bg-[#2962ff] px-2 py-1 text-[10px] font-semibold text-white"
+            >
+              <Target className="h-3 w-3" />
+              Live
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="cursor-pointer rounded p-1.5 text-[#787b86] hover:bg-[#2a2e39] hover:text-[#d1d4dc]"
+            aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
         </div>
+      </div>
+
+      {loadingMore && (
+        <p className="border-b border-[#2a2e39] px-3 py-1 text-[10px] text-[#787b86]">
+          Loading older candles…
+        </p>
       )}
-      <div ref={containerRef} className="w-full" style={{ height }} />
-      {(markers.length > 0 || candles.some((c) => c.fastMa != null)) && (
+
+      <div ref={containerRef} className="w-full" style={{ height: fullscreen ? "calc(100vh - 8rem)" : height }} />
+      {(markers.length > 0 || (maVisible && candles.some((c) => c.fastMa != null))) && (
         <div className="flex flex-wrap gap-4 border-t border-[#2a2e39] px-3 py-2 text-[11px] text-[#787b86]">
           {candles.some((c) => c.fastMa != null) && (
             <>
