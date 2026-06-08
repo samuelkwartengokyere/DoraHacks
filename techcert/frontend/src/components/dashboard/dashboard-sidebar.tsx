@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
 import { LiveSignalBadge } from "@/components/dashboard/live-signal-badge";
-import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 import { api, type TradingSignal } from "@/lib/api";
@@ -158,12 +157,6 @@ function SidebarContent({
           </div>
         </div>
         <div className="space-y-0.5">
-          <div className="lg:hidden">
-            <InstallAppButton
-              variant="menu-item"
-              className="px-3 py-2 text-slate-400 hover:bg-slate-800 hover:text-white"
-            />
-          </div>
           <Link
             href="/"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
@@ -279,7 +272,6 @@ export function DashboardTopBar({
           <p className="hidden truncate text-sm text-gray-500 dark:text-slate-400 sm:block">{descriptions[activeTab]}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <InstallAppButton variant="compact" className="lg:hidden" />
           <LiveSignalBadge signal={liveSignal ?? null} monitoring={monitoring} />
           <ThemeToggle />
           <span className="hidden rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300 sm:inline-flex sm:px-3">

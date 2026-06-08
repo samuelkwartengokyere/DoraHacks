@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { InstallAppFloatingButton } from "@/components/pwa/install-app-button";
 import {
   type BeforeInstallPromptEvent,
   isIOSDevice,
@@ -93,6 +94,7 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
   return (
     <PwaInstallContext.Provider value={value}>
       {children}
+      <InstallAppFloatingButton />
     </PwaInstallContext.Provider>
   );
 }

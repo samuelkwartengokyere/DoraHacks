@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/logo";
-import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn, navigateToSection, sectionIdFromHashHref } from "@/lib/utils";
 
@@ -87,7 +86,6 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
-          <InstallAppButton variant="compact" />
           <ThemeToggle />
         <button
           className="cursor-pointer rounded-lg p-1.5 text-gray-700 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
