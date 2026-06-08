@@ -35,7 +35,8 @@ Google Sign-In setup checklist
 
 5. Authorized JavaScript origins (add each URL you use):
    - http://localhost:3000
-   - your production frontend URL (e.g. https://your-app.vercel.app)
+   - https://dora-hacks-three.vercel.app
+   - your other production frontend URLs (no trailing slashes)
 
    Do NOT add trailing slashes. Redirect URIs are not required for this app.
 

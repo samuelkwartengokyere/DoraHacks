@@ -147,6 +147,33 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
 
 Google sign-in creates an account on first use or links to an existing account with the same verified email.
 
+#### Hosted on Vercel
+
+If the app is deployed (frontend `https://dora-hacks-three.vercel.app`, backend `https://dora-hacks-j399.vercel.app/api`):
+
+1. **Google Cloud Console** → your OAuth client → **Authorized JavaScript origins** → add:
+   ```
+   https://dora-hacks-three.vercel.app
+   ```
+2. **Vercel → backend project** (`dora-hacks-j399`) → Environment Variables:
+   ```
+   GOOGLE_CLIENT_ID=429454131812-l4cpp94bu1oci51p98ot1pcbn54b7q1f.apps.googleusercontent.com
+   FRONTEND_URL=https://dora-hacks-three.vercel.app
+   ```
+3. **Vercel → frontend project** (`dora-hacks-three`) → Environment Variables:
+   ```
+   NEXT_PUBLIC_API_URL=https://dora-hacks-j399.vercel.app/api
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID=429454131812-l4cpp94bu1oci51p98ot1pcbn54b7q1f.apps.googleusercontent.com
+   ```
+4. **Redeploy both projects** (disable build cache). `NEXT_PUBLIC_*` vars are baked in at build time.
+5. **Verify** the backend exposes the client ID:
+   ```
+   https://dora-hacks-j399.vercel.app/api/auth/google/config
+   ```
+   Should return `"enabled": true` and your `clientId`.
+
+6. **Test login:** [https://dora-hacks-three.vercel.app/admin](https://dora-hacks-three.vercel.app/admin)
+
 Landing page (no login): http://localhost:3000
 
 ---

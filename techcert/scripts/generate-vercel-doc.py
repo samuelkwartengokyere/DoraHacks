@@ -46,14 +46,14 @@ def build():
     add_code(
         doc,
         "GitHub: samuelkwartengokyere/Dora-Hacks\n"
-        "├── techcert/frontend/  →  Vercel: dora-hacks (frontend)\n"
+        "├── techcert/frontend/  →  Vercel: dora-hacks-three (frontend)\n"
         "└── techcert/backend/   →  Vercel: dora-hacks-j399 (backend)",
     )
     add_code(
         doc,
         "User browser\n"
         "    ↓\n"
-        "Frontend (dora-hacks.vercel.app)\n"
+        "Frontend (dora-hacks-three.vercel.app)\n"
         "    ↓  NEXT_PUBLIC_API_URL\n"
         "Backend (dora-hacks-j399.vercel.app/api)\n"
         "    ↓  MONGODB_URI\n"
@@ -63,7 +63,7 @@ def build():
     doc.add_heading("Critical Rule: What Goes Where", 1)
     add_table(
         doc,
-        ["Variable", "Frontend (dora-hacks)", "Backend (dora-hacks-j399)"],
+        ["Variable", "Frontend (dora-hacks-three)", "Backend (dora-hacks-j399)"],
         [
             ["NEXT_PUBLIC_API_URL", "YES — backend HTTP URL", "NO"],
             ["MONGODB_URI", "NO — never put this on frontend", "YES — Atlas connection string"],
@@ -83,7 +83,7 @@ def build():
         ["Project", "Vercel Name", "URL"],
         [
             ["Backend", "dora-hacks-j399", "https://dora-hacks-j399.vercel.app"],
-            ["Frontend", "dora-hacks", "https://dora-hacks.vercel.app"],
+            ["Frontend", "dora-hacks-three", "https://dora-hacks-three.vercel.app"],
         ],
     )
 
@@ -139,7 +139,8 @@ def build():
             ["JWT_SECRET", "Long random string (32+ characters)"],
             ["ADMIN_EMAIL", "admin@signalforge.ai"],
             ["ADMIN_PASSWORD", "admin123"],
-            ["FRONTEND_URL", "https://dora-hacks.vercel.app (optional)"],
+            ["GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID.apps.googleusercontent.com", "Same value as frontend NEXT_PUBLIC_GOOGLE_CLIENT_ID"],
+            ["FRONTEND_URL", "https://dora-hacks-three.vercel.app (optional)"],
         ],
     )
     doc.add_paragraph("Rules for MONGODB_URI:")
@@ -188,18 +189,19 @@ def build():
         ],
     )
 
-    doc.add_heading("Part 2 — Frontend Setup (dora-hacks)", 1)
+    doc.add_heading("Part 2 — Frontend Setup (dora-hacks-three)", 1)
 
     doc.add_heading("2.1 Connect GitHub & Root Directory", 2)
     add_code(doc, "Root Directory: techcert/frontend")
 
     doc.add_heading("2.2 Frontend Environment Variables", 2)
-    doc.add_paragraph("Settings → Environment Variables on dora-hacks ONLY:")
+    doc.add_paragraph("Settings → Environment Variables on dora-hacks-three ONLY:")
     add_table(
         doc,
         ["Key", "Value", "Notes"],
         [
             ["NEXT_PUBLIC_API_URL", "https://dora-hacks-j399.vercel.app/api", "Required"],
+            ["NEXT_PUBLIC_GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID.apps.googleusercontent.com", "Same as backend GOOGLE_CLIENT_ID"],
             ["MONGODB_URI", "DELETE if present", "Never on frontend"],
         ],
     )
@@ -218,7 +220,7 @@ def build():
 
     doc.add_heading("Part 3 — Test Login", 1)
     doc.add_paragraph("1. Confirm /api/health/db shows connected: true on backend")
-    doc.add_paragraph("2. Open https://dora-hacks.vercel.app/admin")
+    doc.add_paragraph("2. Open https://dora-hacks-three.vercel.app/admin")
     doc.add_paragraph("3. Sign in with:")
     add_table(
         doc,
@@ -229,6 +231,17 @@ def build():
         ],
     )
     doc.add_paragraph("Or use Create account to register a new user.")
+    doc.add_paragraph("Or use Continue with Google (requires GOOGLE_CLIENT_ID on backend and Google Cloud origin https://dora-hacks-three.vercel.app).")
+
+    doc.add_heading("Part 3b — Google Sign-In (hosted)", 2)
+    doc.add_paragraph("1. Google Cloud Console → Credentials → your OAuth client → Authorized JavaScript origins:")
+    add_code(doc, "https://dora-hacks-three.vercel.app")
+    doc.add_paragraph("2. Backend project (dora-hacks-j399): GOOGLE_CLIENT_ID = your Client ID")
+    doc.add_paragraph("3. Frontend project (dora-hacks-three): NEXT_PUBLIC_GOOGLE_CLIENT_ID = same Client ID")
+    doc.add_paragraph("4. Redeploy BOTH projects (uncheck build cache)")
+    doc.add_paragraph("5. Verify:")
+    add_code(doc, "https://dora-hacks-j399.vercel.app/api/auth/google/config")
+    doc.add_paragraph('Expected: { "success": true, "enabled": true, "clientId": "..." }')
 
     doc.add_heading("Part 4 — Verify Frontend → Backend Connection", 1)
     doc.add_paragraph("Browser DevTools → Network tab → try login → check Request URL:")
@@ -307,7 +320,7 @@ def build():
     ]:
         doc.add_paragraph(f"☐ {item}")
 
-    doc.add_heading("Frontend (dora-hacks)", 2)
+    doc.add_heading("Frontend (dora-hacks-three)", 2)
     for item in [
         "Git connected to same repo",
         "Root Directory = techcert/frontend",
@@ -319,7 +332,7 @@ def build():
         doc.add_paragraph(f"☐ {item}")
 
     doc.add_heading("Quick Copy-Paste", 1)
-    doc.add_paragraph("Frontend (dora-hacks):")
+    doc.add_paragraph("Frontend (dora-hacks-three):")
     add_code(doc, "NEXT_PUBLIC_API_URL=https://dora-hacks-j399.vercel.app/api")
     doc.add_paragraph("Backend (dora-hacks-j399):")
     add_code(
