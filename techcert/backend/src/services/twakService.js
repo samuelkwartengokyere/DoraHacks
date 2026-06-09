@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { getChainConfig, assertLiveExecutionAllowed } = require("../config/chainConfig");
 
 /**
  * Trust Wallet Agent Kit (TWAK) integration layer.
@@ -20,8 +21,12 @@ class TwakService {
   }
 
   async executeSwap({ symbol, action, amountUsd, walletAddress }) {
+    if (this.getMode() === "live") {
+      assertLiveExecutionAllowed();
+    }
+
+    const { twakChain: chain } = getChainConfig();
     const side = action === "SELL" ? "sell" : "buy";
-    const chain = "bsc-testnet";
     const payload = {
       chain,
       fromToken: side === "buy" ? "USDT" : symbol,

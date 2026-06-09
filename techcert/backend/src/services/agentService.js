@@ -1,6 +1,9 @@
 const cmcService = require("./cmcService");
 const twakService = require("./twakService");
 const evaluationService = require("./evaluationService");
+const dailyTradeService = require("./dailyTradeService");
+const x402PaymentService = require("./x402PaymentService");
+const { assertEligibleToken } = require("../config/competitionTokens");
 const { getEvaluationConfig, isWithinEvaluationWindow } = require("../config/evaluationConfig");
 const Agent = require("../models/Agent");
 const Trade = require("../models/Trade");
@@ -8,12 +11,15 @@ const Trade = require("../models/Trade");
 class AgentService {
   async listAgents(ownerId) {
     const agents = await Agent.find({ ownerId }).sort({ createdAt: -1 });
-    return agents.map((agent) => {
-      const price = agent.lastSignal?.metrics?.priceUsd;
-      const obj = agent.toObject();
-      obj.evaluation = evaluationService.serializeEvaluation(agent, price);
-      return obj;
-    });
+    return Promise.all(
+      agents.map(async (agent) => {
+        const price = agent.lastSignal?.metrics?.priceUsd;
+        const obj = agent.toObject();
+        const dailyProgress = await dailyTradeService.getDailyTradeProgress(agent._id);
+        obj.evaluation = evaluationService.serializeEvaluation(agent, price, { dailyProgress });
+        return obj;
+      })
+    );
   }
 
   async getAgentForOwner(agentId, ownerId) {
@@ -26,10 +32,11 @@ class AgentService {
 
   async createAgent(ownerId, payload) {
     const config = getEvaluationConfig();
+    const symbol = assertEligibleToken(payload.symbol || "BNB");
     const agent = await Agent.create({
       ownerId,
       name: payload.name || "BNB Momentum Agent",
-      symbol: (payload.symbol || "BNB").toUpperCase(),
+      symbol,
       strategy: payload.strategy || "cmc-momentum",
       maxTradeUsd: payload.maxTradeUsd ?? 50,
       minConfidence: payload.minConfidence ?? 0.6,
@@ -88,6 +95,8 @@ class AgentService {
     if (!isWithinEvaluationWindow()) {
       throw new Error("Outside held-out evaluation window — trades are not counted");
     }
+
+    assertEligibleToken(agent.symbol);
 
     agent.status = "running";
     agent.lastRunAt = new Date();
@@ -168,6 +177,11 @@ class AgentService {
           ? Math.min(agent.maxTradeUsd, agent.evaluation?.cashUsd ?? agent.maxTradeUsd)
           : agent.maxTradeUsd;
 
+      const x402Payment = x402PaymentService.buildTradePaymentMeta({
+        purpose: "trade-loop",
+        amountUsd: 0.01,
+      });
+
       const execution = await twakService.executeSwap({
         symbol: agent.symbol,
         action: signal.action,
@@ -222,6 +236,7 @@ class AgentService {
         status: execution.ok ? (signal.action === "BUY" ? "open" : "completed") : "failed",
         executionDetail: execution.message,
         withinEvaluationWindow: isWithinEvaluationWindow(),
+        x402Payment,
       });
 
       agent.lastSignal = signal;

@@ -496,7 +496,7 @@ class StrategyService {
       track: "strategy-skills",
       symbol,
       pipeline: [
-        { step: "cmc-agent-hub", action: "fetch_quote_and_global_metrics" },
+        { step: "cmc-agent-hub", action: "fetch_quote_and_global_metrics", protocol: require("./cmcService").getDataSource?.() || "rest" },
         { step: "signal-engine", action: "compute_regime_and_action", result: resolvedSignal },
         { step: "backtest", action: "ma_crossover_on_hourly_ohlcv", params: { fastPeriod, slowPeriod } },
       ],
@@ -553,7 +553,7 @@ class StrategyService {
       track: "strategy-skills",
       symbol,
       pipeline: [
-        { step: "cmc-agent-hub", action: "fetch_quote_and_global_metrics" },
+        { step: "cmc-agent-hub", action: "fetch_quote_and_global_metrics", protocol: require("./cmcService").getDataSource?.() || "rest" },
         { step: "signal-engine", action: "compute_regime_and_action", result: signal },
         ...(backtest
           ? [{ step: "backtest", action: "ma_crossover_on_hourly_ohlcv" }]

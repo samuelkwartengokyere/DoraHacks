@@ -1,4 +1,5 @@
 const axios = require("axios");
+const cmcMcpClient = require("./cmcMcpClient");
 
 const PLACEHOLDER_KEYS = new Set([
   "",
@@ -6,14 +7,46 @@ const PLACEHOLDER_KEYS = new Set([
   "your_cmc_mcp_api_key",
 ]);
 
+function getDataSource() {
+  const source = (process.env.CMC_DATA_SOURCE || "auto").trim().toLowerCase();
+  if (source === "mcp" || source === "rest") return source;
+  if (cmcMcpClient.isConfigured() && process.env.CMC_DATA_SOURCE !== "rest") {
+    return "mcp";
+  }
+  return "rest";
+}
+
 class CmcService {
   isConfigured() {
+    return cmcMcpClient.isConfigured() || this.isRestConfigured();
+  }
+
+  isRestConfigured() {
     const key = process.env.CMC_PRO_API_KEY?.trim();
     return Boolean(key && !PLACEHOLDER_KEYS.has(key));
   }
 
+  getDataSource() {
+    return getDataSource();
+  }
+
   async getQuote(symbol = "BNB") {
-    if (!this.isConfigured()) {
+    const upper = symbol.toUpperCase();
+
+    if (getDataSource() === "mcp" && cmcMcpClient.isConfigured()) {
+      try {
+        const data = await cmcMcpClient.getQuote(upper);
+        const entry = data?.data?.[upper] || data?.[upper];
+        if (entry) {
+          const quote = entry.quote?.USD || entry.quote?.usd || {};
+          return this.normalizeQuote(upper, entry, quote, false);
+        }
+      } catch (error) {
+        console.warn("CMC MCP quote failed — falling back to REST:", error.message);
+      }
+    }
+
+    if (!this.isRestConfigured()) {
       return this.mockQuote(symbol);
     }
 
@@ -41,7 +74,27 @@ class CmcService {
   }
 
   async getGlobalMetrics() {
-    if (!this.isConfigured()) {
+    if (getDataSource() === "mcp" && cmcMcpClient.isConfigured()) {
+      try {
+        const data = await cmcMcpClient.getGlobalMetrics();
+        const quote = data?.data?.quote?.USD || data?.quote?.USD || {};
+        return {
+          mock: false,
+          btcDominance: data?.data?.btc_dominance ?? data?.btc_dominance,
+          totalMarketCapUsd: quote.total_market_cap,
+          totalVolume24hUsd: quote.total_volume_24h,
+          marketCapChange24h: quote.total_market_cap_yesterday
+            ? ((quote.total_market_cap - quote.total_market_cap_yesterday) /
+                quote.total_market_cap_yesterday) *
+              100
+            : 0,
+        };
+      } catch (error) {
+        console.warn("CMC MCP global metrics failed — falling back to REST:", error.message);
+      }
+    }
+
+    if (!this.isRestConfigured()) {
       return {
         mock: true,
         btcDominance: 52.4,
@@ -175,7 +228,7 @@ class CmcService {
         globalMarketCapChange24h: globalChange,
         momentumScore: Number(score.toFixed(2)),
       },
-      source: quote.mock ? "cmc-mock" : "cmc-agent-hub",
+      source: quote.mock ? "cmc-mock" : `cmc-agent-hub-${getDataSource()}`,
       generatedAt: new Date().toISOString(),
     };
   }

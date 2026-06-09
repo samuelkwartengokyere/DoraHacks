@@ -21,7 +21,8 @@ function envDefaults() {
   return {
     initialUsd: parseNumber(process.env.EVALUATION_INITIAL_USD, 1000),
     maxDrawdownPercent: parseNumber(process.env.EVALUATION_MAX_DRAWDOWN_PERCENT, 30),
-    minTradeCount: parseNumber(process.env.EVALUATION_MIN_TRADE_COUNT, 5),
+    minTradeCount: parseNumber(process.env.EVALUATION_MIN_TRADE_COUNT, 7),
+    minTradesPerDay: parseNumber(process.env.EVALUATION_MIN_TRADES_PER_DAY, 1),
     feeBps: parseNumber(process.env.EVALUATION_FEE_BPS, 10),
     slippageBps: parseNumber(
       process.env.EVALUATION_SLIPPAGE_BPS || process.env.AGENT_SLIPPAGE_BPS,
@@ -34,7 +35,8 @@ function envDefaults() {
     rules: {
       rankingMetric: "total_return_percent",
       disqualifyAboveDrawdown: parseNumber(process.env.EVALUATION_MAX_DRAWDOWN_PERCENT, 30),
-      requireMinTrades: parseNumber(process.env.EVALUATION_MIN_TRADE_COUNT, 5),
+      requireMinTrades: parseNumber(process.env.EVALUATION_MIN_TRADE_COUNT, 7),
+      requireMinTradesPerDay: parseNumber(process.env.EVALUATION_MIN_TRADES_PER_DAY, 1),
       simulateTransactionCosts: true,
     },
   };
@@ -51,6 +53,7 @@ function buildConfigFromDoc(doc) {
     initialUsd: doc.initialUsd ?? env.initialUsd,
     maxDrawdownPercent,
     minTradeCount,
+    minTradesPerDay: doc.minTradesPerDay ?? env.minTradesPerDay,
     feeBps: doc.feeBps ?? env.feeBps,
     slippageBps: doc.slippageBps ?? env.slippageBps,
     autoExecute: doc.autoExecute ?? env.autoExecute,
@@ -96,6 +99,7 @@ async function refreshEvaluationConfig() {
       initialUsd: env.initialUsd,
       maxDrawdownPercent: env.maxDrawdownPercent,
       minTradeCount: env.minTradeCount,
+      minTradesPerDay: env.minTradesPerDay,
       feeBps: env.feeBps,
       slippageBps: env.slippageBps,
       autoExecute: env.autoExecute,
@@ -131,7 +135,10 @@ async function updateEvaluationSettings(adminId, payload = {}) {
     updates.maxDrawdownPercent = parseNumber(payload.maxDrawdownPercent, 30);
   }
   if (payload.minTradeCount != null) {
-    updates.minTradeCount = parseNumber(payload.minTradeCount, 5);
+    updates.minTradeCount = parseNumber(payload.minTradeCount, 7);
+  }
+  if (payload.minTradesPerDay != null) {
+    updates.minTradesPerDay = parseNumber(payload.minTradesPerDay, 1);
   }
   if (payload.feeBps != null) {
     updates.feeBps = parseNumber(payload.feeBps, 10);

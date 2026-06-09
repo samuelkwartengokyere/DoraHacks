@@ -4,15 +4,18 @@ const agentService = require("../services/agentService");
 const agentSchedulerService = require("../services/agentSchedulerService");
 const strategySchedulerService = require("../services/strategySchedulerService");
 const cmcService = require("../services/cmcService");
+const { assertEligibleToken } = require("../config/competitionTokens");
 
 const router = express.Router();
 
 router.get("/signals/:symbol", async (req, res) => {
   try {
-    const signal = await cmcService.getTradingSignal(req.params.symbol);
+    const symbol = assertEligibleToken(req.params.symbol);
+    const signal = await cmcService.getTradingSignal(symbol);
     res.json({ success: true, signal });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const status = error.code === "INELIGIBLE_TOKEN" ? 400 : 500;
+    res.status(status).json({ success: false, message: error.message, code: error.code });
   }
 });
 

@@ -29,6 +29,7 @@ const tradeSchema = new mongoose.Schema(
     totalReturnPercent: { type: Number },
     maxDrawdownPercent: { type: Number },
     withinEvaluationWindow: { type: Boolean, default: true },
+    x402Payment: { type: mongoose.Schema.Types.Mixed },
   },
   { timestamps: true }
 );

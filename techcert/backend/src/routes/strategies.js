@@ -3,6 +3,7 @@ const auth = require("../middleware/auth");
 const StrategyRun = require("../models/StrategyRun");
 const strategyService = require("../services/strategyService");
 const strategySchedulerService = require("../services/strategySchedulerService");
+const { assertEligibleToken } = require("../config/competitionTokens");
 
 const router = express.Router();
 
@@ -28,8 +29,10 @@ router.post("/backtest", auth, async (req, res) => {
       initialUsd = 1000,
     } = req.body;
 
+    const eligibleSymbol = assertEligibleToken(symbol);
+
     const { run, skillOutput } = await strategyService.runAndSave(req.admin.id, {
-      symbol,
+      symbol: eligibleSymbol,
       name,
       fastPeriod,
       slowPeriod,

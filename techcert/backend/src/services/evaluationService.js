@@ -79,7 +79,7 @@ function checkDisqualification(agent) {
   return { disqualified: false, reason: null };
 }
 
-function getEligibility(evaluation) {
+function getEligibility(evaluation, { dailyProgress } = {}) {
   const config = getEvaluationConfig();
   const inWindow = isWithinEvaluationWindow();
 
@@ -110,20 +110,31 @@ function getEligibility(evaluation) {
     };
   }
 
+  if (dailyProgress && !dailyProgress.competitionReady) {
+    return {
+      eligible: false,
+      status: "pending_daily_trades",
+      reason: dailyProgress.reason,
+      inWindow,
+      dailyProgress,
+    };
+  }
+
   return {
     eligible: true,
     status: "ranked",
     reason: null,
     inWindow,
+    dailyProgress: dailyProgress ?? null,
   };
 }
 
-function serializeEvaluation(agent, markPrice = null) {
+function serializeEvaluation(agent, markPrice = null, { dailyProgress } = {}) {
   const evaluation = ensureEvaluation(agent);
   const config = getEvaluationConfig();
   const price = markPrice ?? agent.lastSignal?.metrics?.priceUsd ?? 0;
   const metrics = price ? computeEquity(evaluation, price) : {};
-  const eligibility = getEligibility(evaluation);
+  const eligibility = getEligibility(evaluation, { dailyProgress });
 
   return {
     initialUsd: evaluation.initialUsd,
@@ -145,6 +156,7 @@ function serializeEvaluation(agent, markPrice = null) {
     config: {
       maxDrawdownPercent: config.maxDrawdownPercent,
       minTradeCount: config.minTradeCount,
+      minTradesPerDay: config.minTradesPerDay,
       windowStart: config.windowStart,
       windowEnd: config.windowEnd,
     },

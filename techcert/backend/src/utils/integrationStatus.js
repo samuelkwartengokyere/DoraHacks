@@ -3,6 +3,8 @@ const { ethers } = require("ethers");
 const cmcService = require("../services/cmcService");
 const twakService = require("../services/twakService");
 const bnbChainService = require("../services/bnbChainService");
+const x402PaymentService = require("../services/x402PaymentService");
+const { getChainConfig } = require("../config/chainConfig");
 
 const PLACEHOLDER_VALUES = new Set([
   "",
@@ -29,6 +31,7 @@ function getEnvConfig() {
   const twakConfigured = twakService.isConfigured();
   const liveExecutionEnabled =
     process.env.AGENT_EXECUTION_MODE === "live" && twakConfigured;
+  const chain = getChainConfig();
 
   return {
     frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -36,6 +39,7 @@ function getEnvConfig() {
     mongodbUri: process.env.MONGODB_URI,
     jwtSecret: process.env.JWT_SECRET,
     cmcConfigured: cmcService.isConfigured(),
+    cmcDataSource: cmcService.getDataSource?.() || "rest",
     twakConfigured,
     liveExecutionEnabled,
     executionMode: twakService.getMode(),
@@ -44,8 +48,10 @@ function getEnvConfig() {
       process.env.AGENT_WALLET_ADDRESS?.trim() ||
       bnbChainService.wallet?.address ||
       null,
-    network: process.env.BNB_TESTNET_RPC ? "BNB Chain Testnet" : null,
-    chainId: 97,
+    network: chain.networkName,
+    chainId: chain.chainId,
+    chainMode: chain.mode,
+    x402Enabled: x402PaymentService.isEnabled(),
   };
 }
 
@@ -181,6 +187,7 @@ async function getIntegrationStatus({ deep = false } = {}) {
     cmc: {
       configured: config.cmcConfigured,
       status: config.cmcConfigured ? "configured" : "mock",
+      protocol: config.cmcDataSource,
       hubUrl: "https://mcp.coinmarketcap.com/mcp",
     },
     twak: {
@@ -193,6 +200,10 @@ async function getIntegrationStatus({ deep = false } = {}) {
       status: config.bnbChainConfigured ? "live" : "mock",
       network: config.network,
       chainId: config.chainId,
+    },
+    x402: {
+      configured: config.x402Enabled,
+      status: config.x402Enabled ? "enabled" : "disabled",
     },
     agentWallet: {
       configured: Boolean(config.agentWalletAddress),

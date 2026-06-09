@@ -1,4 +1,5 @@
 const { ethers } = require("ethers");
+const { getChainConfig } = require("../config/chainConfig");
 
 const PLACEHOLDER_KEYS = new Set([
   "",
@@ -19,7 +20,7 @@ class BnbChainService {
   }
 
   initialize() {
-    const rpcUrl = process.env.BNB_TESTNET_RPC;
+    const { rpcUrl } = getChainConfig();
     const privateKey = process.env.PRIVATE_KEY;
 
     if (!rpcUrl || !this.isPrivateKeyConfigured()) {
