@@ -130,17 +130,23 @@ async function testTwakConnection() {
     return {
       ok: false,
       mode: "paper",
-      message: "Trust Wallet Agent Kit not configured — paper trading enabled",
+      message: "TWAK sidecar not configured — paper trading enabled",
+      hint: "Deploy twak serve --rest and set TWAK_API_URL on Vercel",
     };
   }
 
+  const health = await twakService.healthCheck();
+  const chain = getChainConfig();
+
   return {
-    ok: true,
+    ok: health.ok,
     mode: twakService.getMode(),
-    message:
-      twakService.getMode() === "live"
-        ? "TWAK configured for live BSC testnet execution"
-        : "TWAK configured — set AGENT_EXECUTION_MODE=live to execute on-chain",
+    apiMode: health.apiMode,
+    actions: health.actions,
+    message: health.ok
+      ? `${health.message} · ${chain.networkName} · ${twakService.getMode()} mode`
+      : health.message,
+    hint: health.hint,
   };
 }
 

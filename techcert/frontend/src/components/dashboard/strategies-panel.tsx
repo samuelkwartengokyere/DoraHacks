@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LineChart as LineChartIcon, Play, Square } from "lucide-react";
+import { Bell, Download, LineChart as LineChartIcon, Play, Square } from "lucide-react";
 import { api, type StrategyRun, type StrategySchedule, type TradingSignal } from "@/lib/api";
+import { EligibleTokenSelect } from "@/components/dashboard/eligible-token-select";
 import { SignalDurationPanel } from "@/components/dashboard/signal-duration-panel";
 
 const POLL_MS = 15_000;
@@ -29,6 +30,8 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [initialUsd, setInitialUsd] = useState("1000");
+  const [symbol, setSymbol] = useState("BNB");
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   const isAutomated = Boolean(schedule?.isAutomated);
   const pollSeconds = schedule?.signalPollSeconds ?? 30;
@@ -53,7 +56,7 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
     setMessage("");
     try {
       const result = await api.startStrategyAutomation({
-        symbol: "BNB",
+        symbol,
         name: "CMC Momentum MA Crossover",
         initialUsd: Number(initialUsd),
         pollSeconds: 30,
@@ -92,7 +95,7 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
     setMessage("");
     try {
       await api.runStrategyBacktest({
-        symbol: "BNB",
+        symbol,
         name: "CMC Momentum MA Crossover",
         initialUsd: Number(initialUsd),
       });
@@ -102,6 +105,28 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
       setError(err instanceof Error ? err.message : "Backtest failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleExport(runId: string) {
+    setExportingId(runId);
+    setError("");
+    try {
+      const result = await api.exportTrack2Submission(runId);
+      const blob = new Blob([JSON.stringify(result.submission, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `signalforge-track2-${runId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMessage("Track 2 DoraHacks JSON downloaded.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportingId(null);
     }
   }
 
@@ -133,6 +158,12 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
               )}
             </div>
           )}
+          <EligibleTokenSelect
+            id="strategySymbol"
+            value={symbol}
+            onChange={setSymbol}
+            className="max-w-xs space-y-2"
+          />
           <div className="max-w-xs space-y-2">
             <Label htmlFor="initialUsd">Backtest capital (USD)</Label>
             <Input
@@ -190,7 +221,9 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
           <CardHeader>
             <CardTitle>Latest Backtest</CardTitle>
             <CardDescription>
-              {output.skill} · {output.track}
+              {output.skill} · {output.track} · data via{" "}
+              {(output as { dorahacksSubmission?: { dataSource?: string } }).dorahacksSubmission
+                ?.dataSource || "cmc-agent-hub"}
               {schedule?.lastBacktestAt && (
                 <> · {new Date(schedule.lastBacktestAt).toLocaleString()}</>
               )}
@@ -234,6 +267,18 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
                   : ""}
                 {output.backtest.disqualified ? " · Would fail drawdown cap" : ""}
               </p>
+            )}
+            {latestBacktest?._id && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={exportingId === latestBacktest._id}
+                onClick={() => handleExport(latestBacktest._id)}
+              >
+                <Download className="h-4 w-4" />
+                {exportingId === latestBacktest._id ? "Exporting..." : "Export DoraHacks JSON"}
+              </Button>
             )}
           </CardContent>
         </Card>

@@ -1,5 +1,3 @@
-const { execFile } = require("child_process");
-const { promisify } = require("util");
 const { getChainConfig } = require("../config/chainConfig");
 const { ELIGIBLE_SET } = require("../config/competitionTokens");
 const twakService = require("./twakService");
@@ -10,8 +8,6 @@ const bnbChainService = require("./bnbChainService");
 const dailyTradeService = require("./dailyTradeService");
 const { getEvaluationConfig, isWithinEvaluationWindow } = require("../config/evaluationConfig");
 
-const execFileAsync = promisify(execFile);
-
 const COMPETITION_CONTRACT =
   process.env.COMPETITION_CONTRACT_ADDRESS ||
   "0x212c61b9b72c95d95bf29cf032f5e5635629aed5";
@@ -19,16 +15,27 @@ const COMPETITION_CONTRACT =
 const DORAHACKS_URL = "https://dorahacks.io/hackathon/bnbhack-twt-cmc/detail";
 
 async function tryTwakRegister() {
+  if (!twakService.isConfigured()) {
+    return {
+      ok: false,
+      message: "TWAK sidecar not configured on Vercel",
+      hint: "Set TWAK_API_URL to your twak serve --rest host, then retry",
+    };
+  }
+
   try {
-    const { stdout, stderr } = await execFileAsync("twak", ["compete", "register"], {
-      timeout: 60000,
-    });
-    return { ok: true, stdout: stdout.trim(), stderr: stderr?.trim() || null };
+    const result = await twakService.competitionRegister();
+    return {
+      ok: true,
+      txHash: result.txHash,
+      message: result.message,
+      raw: result.raw,
+    };
   } catch (error) {
     return {
       ok: false,
-      message: error.message,
-      hint: "Install TWAK CLI: curl -fsSL https://agent-kit.trustwallet.com/install.sh | bash",
+      message: error.response?.data?.message || error.message,
+      hint: "Ensure twak serve --rest is running with TWAK_WALLET_PASSWORD and funded BSC wallet",
     };
   }
 }

@@ -1,5 +1,7 @@
 const axios = require("axios");
 const cmcMcpClient = require("./cmcMcpClient");
+const x402PaymentService = require("./x402PaymentService");
+const twakService = require("./twakService");
 
 const PLACEHOLDER_KEYS = new Set([
   "",
@@ -9,10 +11,11 @@ const PLACEHOLDER_KEYS = new Set([
 
 function getDataSource() {
   const source = (process.env.CMC_DATA_SOURCE || "auto").trim().toLowerCase();
-  if (source === "mcp" || source === "rest") return source;
-  if (cmcMcpClient.isConfigured() && process.env.CMC_DATA_SOURCE !== "rest") {
-    return "mcp";
-  }
+  if (source === "x402") return "x402";
+  if (source === "mcp") return "mcp";
+  if (source === "rest") return "rest";
+  if (x402PaymentService.isEnabled() && twakService.isConfigured()) return "x402";
+  if (cmcMcpClient.isConfigured() && process.env.CMC_DATA_SOURCE !== "rest") return "mcp";
   return "rest";
 }
 
@@ -32,15 +35,26 @@ class CmcService {
 
   async getQuote(symbol = "BNB") {
     const upper = symbol.toUpperCase();
+    const source = getDataSource();
 
-    if (getDataSource() === "mcp" && cmcMcpClient.isConfigured()) {
+    if (source === "x402" && x402PaymentService.isEnabled()) {
+      try {
+        const x402Result = await x402PaymentService.fetchCmcQuote(upper);
+        const entry = x402Result.quote;
+        const quote = entry.quote?.USD || entry.quote?.usd || {};
+        const normalized = this.normalizeQuote(upper, entry, quote, false);
+        normalized.x402PaymentTx = x402Result.paymentTxHash;
+        normalized.source = "cmc-agent-hub-x402";
+        return normalized;
+      } catch (error) {
+        console.warn("CMC x402 quote failed — falling back:", error.message);
+      }
+    }
+
+    if (source === "mcp" && cmcMcpClient.isConfigured()) {
       try {
         const data = await cmcMcpClient.getQuote(upper);
-        const entry = data?.data?.[upper] || data?.[upper];
-        if (entry) {
-          const quote = entry.quote?.USD || entry.quote?.usd || {};
-          return this.normalizeQuote(upper, entry, quote, false);
-        }
+        return cmcMcpClient.normalizeQuote(upper, data);
       } catch (error) {
         console.warn("CMC MCP quote failed — falling back to REST:", error.message);
       }
@@ -74,21 +88,12 @@ class CmcService {
   }
 
   async getGlobalMetrics() {
-    if (getDataSource() === "mcp" && cmcMcpClient.isConfigured()) {
+    const source = getDataSource();
+
+    if (source === "mcp" && cmcMcpClient.isConfigured()) {
       try {
         const data = await cmcMcpClient.getGlobalMetrics();
-        const quote = data?.data?.quote?.USD || data?.quote?.USD || {};
-        return {
-          mock: false,
-          btcDominance: data?.data?.btc_dominance ?? data?.btc_dominance,
-          totalMarketCapUsd: quote.total_market_cap,
-          totalVolume24hUsd: quote.total_volume_24h,
-          marketCapChange24h: quote.total_market_cap_yesterday
-            ? ((quote.total_market_cap - quote.total_market_cap_yesterday) /
-                quote.total_market_cap_yesterday) *
-              100
-            : 0,
-        };
+        return cmcMcpClient.normalizeGlobalMetrics(data);
       } catch (error) {
         console.warn("CMC MCP global metrics failed — falling back to REST:", error.message);
       }
@@ -227,6 +232,7 @@ class CmcService {
         marketCapUsd: quote.marketCapUsd,
         globalMarketCapChange24h: globalChange,
         momentumScore: Number(score.toFixed(2)),
+        x402PaymentTx: quote.x402PaymentTx || null,
       },
       source: quote.mock ? "cmc-mock" : `cmc-agent-hub-${getDataSource()}`,
       generatedAt: new Date().toISOString(),

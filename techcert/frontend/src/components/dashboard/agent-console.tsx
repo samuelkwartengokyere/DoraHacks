@@ -22,6 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { api, type Agent, type Trade, type TradingSignal } from "@/lib/api";
+import { EligibleTokenSelect } from "@/components/dashboard/eligible-token-select";
 import { SignalDurationPanel } from "@/components/dashboard/signal-duration-panel";
 import { AgentEvaluationBadge } from "@/components/dashboard/evaluation-track-panel";
 import { isOpenTrade } from "@/lib/trade-utils";
@@ -276,6 +277,7 @@ function AgentTabPanel({
 
 export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: AgentConsoleProps) {
   const [name, setName] = useState("BNB Momentum Agent");
+  const [symbol, setSymbol] = useState("BNB");
   const [maxTradeUsd, setMaxTradeUsd] = useState("50");
   const [minConfidence, setMinConfidence] = useState("0.6");
   const [loading, setLoading] = useState(false);
@@ -326,7 +328,7 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
     try {
       const result = await api.createAgent({
         name,
-        symbol: "BNB",
+        symbol,
         maxTradeUsd: Number(maxTradeUsd),
         minConfidence: Number(minConfidence),
       });
@@ -538,6 +540,12 @@ export function AgentConsole({ agents, trades, onRefresh, onTradeExecuted }: Age
                     <Label htmlFor="agentName">Agent name</Label>
                     <Input id="agentName" value={name} onChange={(e) => setName(e.target.value)} />
                   </div>
+                  <EligibleTokenSelect
+                    id="agentSymbol"
+                    value={symbol}
+                    onChange={setSymbol}
+                    className="space-y-2"
+                  />
                   <div className="space-y-2">
                     <Label htmlFor="maxTrade">Max trade (USD, when executing)</Label>
                     <Input

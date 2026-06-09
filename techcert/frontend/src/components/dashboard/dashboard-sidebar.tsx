@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Menu,
   X,
+  Trophy,
   Settings,
 } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
@@ -19,7 +20,14 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 import { api, type TradingSignal } from "@/lib/api";
 
-export type DashboardTab = "overview" | "agent" | "strategies" | "chart" | "trades" | "settings";
+export type DashboardTab =
+  | "overview"
+  | "competition"
+  | "agent"
+  | "strategies"
+  | "chart"
+  | "trades"
+  | "settings";
 
 interface DashboardSidebarProps {
   activeTab: DashboardTab;
@@ -30,6 +38,7 @@ interface DashboardSidebarProps {
 
 const mainNav: { id: DashboardTab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "competition", label: "Competition", icon: Trophy },
   { id: "agent", label: "Trading Agent", icon: Bot },
   { id: "strategies", label: "Strategy Skills", icon: LineChart },
   { id: "chart", label: "Chart", icon: ChartCandlestick },
@@ -232,6 +241,7 @@ export function DashboardTopBar({
 }) {
   const titles: Record<DashboardTab, string> = {
     overview: "Agent Overview",
+    competition: "BNB Hack Competition",
     agent: "Autonomous Trading Agent",
     strategies: "CMC Strategy Skills",
     chart: "Market Chart",
@@ -241,7 +251,8 @@ export function DashboardTopBar({
 
   const descriptions: Record<DashboardTab, string> = {
     overview: "Monitor CMC signals, agents, and BSC execution status",
-    agent: "Track 1 — live BUY / SELL / HOLD signals, execute when you choose",
+    competition: "Dual-track checklist, on-chain registration, Track 2 export",
+    agent: "Track 1 — live BUY / SELL / HOLD signals, TWAK autonomous execution",
     strategies: "Track 2 — backtestable skills powered by CoinMarketCap",
     chart: "Broker-style candlesticks, volume, and trade signal overlays",
     trades: "On-chain and paper trades from your agents",
@@ -250,6 +261,7 @@ export function DashboardTopBar({
 
   const tabItems: { id: DashboardTab; label: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "competition", label: "Competition" },
     { id: "agent", label: "Agent" },
     { id: "strategies", label: "Strategies" },
     { id: "chart", label: "Chart" },

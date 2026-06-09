@@ -8,6 +8,7 @@ import { StrategiesPanel } from "@/components/dashboard/strategies-panel";
 import { ChartPanel } from "@/components/dashboard/chart-panel";
 import { TradesPanel } from "@/components/dashboard/trades-panel";
 import { SettingsPanel } from "@/components/dashboard/settings-panel";
+import { CompetitionPanel } from "@/components/dashboard/competition-panel";
 import {
   DashboardSidebar,
   DashboardMobileNav,
@@ -264,6 +265,12 @@ export function AdminDashboard() {
                 leaderboard={leaderboard}
                 onNavigate={setActiveTab}
               />
+            </TabContent>
+          )}
+
+          {activeTab === "competition" && (
+            <TabContent tabKey="competition">
+              <CompetitionPanel strategyRuns={strategyRuns} onNavigate={setActiveTab} />
             </TabContent>
           )}
 

@@ -95,22 +95,84 @@ export interface AgentEvaluation {
   lastMarkToMarketAt?: string | null;
   eligibility: {
     eligible: boolean;
-    status: "ranked" | "disqualified" | "pending_min_trades" | "outside_window";
+    status:
+      | "ranked"
+      | "disqualified"
+      | "pending_min_trades"
+      | "pending_daily_trades"
+      | "outside_window";
     reason: string | null;
     inWindow: boolean;
+    dailyProgress?: DailyTradeProgress | null;
   };
   config: {
     maxDrawdownPercent: number;
     minTradeCount: number;
+    minTradesPerDay?: number;
     windowStart: string | null;
     windowEnd: string | null;
   };
+}
+
+export interface DailyTradeProgress {
+  totalExecuted: number;
+  minTotalTrades: number;
+  minTradesPerDay: number;
+  tradingDaysRequired: number;
+  daysWithTrades: number;
+  missingDays: string[];
+  competitionReady: boolean;
+  reason: string | null;
+}
+
+export interface CompetitionChecklistItem {
+  id: string;
+  label: string;
+  done: boolean;
+  detail?: string;
+  action?: string;
+  url?: string;
+}
+
+export interface CompetitionStatus {
+  success?: boolean;
+  track1: {
+    track: string;
+    contractAddress: string;
+    chain: { mode: string; networkName: string; chainId: number };
+    walletAddress: string | null;
+    inTradingWindow: boolean;
+    evaluationWindow: { start: string | null; end: string | null };
+    eligibleTokenCount: number;
+    dailyProgress: DailyTradeProgress | null;
+    checklist: CompetitionChecklistItem[];
+    registration: {
+      cli: string;
+      mcp: string;
+      contract: string;
+      dorahacks: string;
+    };
+  };
+  track2: {
+    track: string;
+    checklist: CompetitionChecklistItem[];
+    dorahacks: string;
+    skillName: string;
+  };
+  specialPrizes: Array<{ name: string; track: string; amountUsd: number }>;
+  stackRecommendation: string;
+}
+
+export interface Track2Export {
+  success: boolean;
+  submission: Record<string, unknown>;
 }
 
 export interface EvaluationConfig {
   initialUsd: number;
   maxDrawdownPercent: number;
   minTradeCount: number;
+  minTradesPerDay?: number;
   feeBps: number;
   slippageBps: number;
   autoExecute: boolean;
@@ -613,6 +675,30 @@ class ApiClient {
         volume: number;
       }>;
     }>(`/market/candles?${params}`);
+  }
+
+  async getCompetitionStatus() {
+    return this.request<CompetitionStatus>("/competition/status");
+  }
+
+  async getEligibleTokens() {
+    return this.request<{ success: boolean; count: number; symbols: string[] }>(
+      "/competition/tokens",
+    );
+  }
+
+  async registerCompetitionOnChain() {
+    return this.request<{
+      success: boolean;
+      ok: boolean;
+      txHash?: string;
+      message?: string;
+      hint?: string;
+    }>("/competition/register-on-chain", { method: "POST" });
+  }
+
+  async exportTrack2Submission(runId: string) {
+    return this.request<Track2Export>(`/competition/track2/export/${runId}`);
   }
 }
 

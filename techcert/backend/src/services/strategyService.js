@@ -512,6 +512,25 @@ class StrategyService {
       },
       backtest,
       generatedAt: new Date().toISOString(),
+      dorahacksSubmission: {
+        track: "strategy-skills",
+        signalLogic:
+          "CMC Agent Hub momentum score (1h/24h/7d, global regime, volume) merged with MA(9/21) crossover confirmation.",
+        backtestSummary: {
+          pnlPercent: backtest.pnlPercent,
+          pnlUsd: backtest.pnlUsd,
+          tradeCount: backtest.tradeCount,
+          winRate: backtest.winRate,
+          maxDrawdownPercent: backtest.maxDrawdownPercent,
+          alignedWithSignal:
+            (resolvedSignal.action === "BUY" && backtest.pnlPercent > 0) ||
+            (resolvedSignal.action === "SELL" && backtest.pnlPercent < 0) ||
+            resolvedSignal.action === "HOLD",
+        },
+        track1Consumption:
+          "Track 1 autonomous agent polls this skill output via strategy scheduler and auto-executes TWAK swaps when signal action changes and confidence exceeds agent.minConfidence.",
+        dataSource: require("./cmcService").getDataSource?.() || "rest",
+      },
     };
 
     return skillOutput;

@@ -106,6 +106,12 @@ class AgentService {
       const signal = await cmcService.getTradingSignal(agent.symbol);
       const priceUsd = signal.metrics?.priceUsd;
 
+      const x402Payment = x402PaymentService.buildTradePaymentMeta({
+        purpose: "trade-loop-cmc-data",
+        amountUsd: 0.01,
+        paymentTxHash: signal.metrics?.x402PaymentTx || null,
+      });
+
       if (signal.action === "HOLD" || signal.confidence < agent.minConfidence) {
         const skipReason =
           signal.action === "HOLD"
@@ -124,6 +130,7 @@ class AgentService {
           executionMode: twakService.getMode(),
           status: "skipped",
           withinEvaluationWindow: isWithinEvaluationWindow(),
+          x402Payment,
         });
 
         agent.lastSignal = signal;
@@ -176,11 +183,6 @@ class AgentService {
         signal.action === "BUY"
           ? Math.min(agent.maxTradeUsd, agent.evaluation?.cashUsd ?? agent.maxTradeUsd)
           : agent.maxTradeUsd;
-
-      const x402Payment = x402PaymentService.buildTradePaymentMeta({
-        purpose: "trade-loop",
-        amountUsd: 0.01,
-      });
 
       const execution = await twakService.executeSwap({
         symbol: agent.symbol,
