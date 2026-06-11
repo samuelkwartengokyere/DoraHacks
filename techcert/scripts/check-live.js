@@ -20,6 +20,7 @@ const {
   testTwakConnection,
   testBnbChainConnection,
 } = require("../backend/src/utils/integrationStatus");
+const { getChainConfig } = require("../backend/src/config/chainConfig");
 
 function printResult(label, ok, message) {
   const icon = ok ? "✓" : "✗";
@@ -59,10 +60,12 @@ async function main() {
   printResult("Trust Wallet Agent Kit", twak.ok, twak.message);
 
   const bnb = await testBnbChainConnection();
-  printResult("BNB Chain Testnet", bnb.ok, bnb.message);
+  const chain = getChainConfig();
+  const gasLabel = chain.mode === "mainnet" ? "BNB" : "tBNB";
+  printResult(chain.networkName, bnb.ok, bnb.message);
   if (bnb.agentBalanceBnb !== undefined) {
     console.log(`  Agent wallet: ${bnb.agentAddress}`);
-    console.log(`  Balance: ${bnb.agentBalanceBnb} tBNB`);
+    console.log(`  Balance: ${bnb.agentBalanceBnb} ${gasLabel}`);
   }
 
   const deepStatus = await getIntegrationStatus({ deep: true });

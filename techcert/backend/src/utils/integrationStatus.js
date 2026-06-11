@@ -160,13 +160,14 @@ async function testBnbChainConnection() {
   }
 
   try {
+    const chain = getChainConfig();
     const blockNumber = await bnbChainService.provider.getBlockNumber();
     const balance = await bnbChainService.provider.getBalance(bnbChainService.wallet.address);
 
     return {
       ok: true,
       mode: "live",
-      message: `Connected to BNB Testnet (block ${blockNumber})`,
+      message: `Connected to ${chain.networkName} (block ${blockNumber})`,
       blockNumber,
       agentBalanceBnb: ethers.formatEther(balance),
       agentAddress: bnbChainService.wallet.address,
