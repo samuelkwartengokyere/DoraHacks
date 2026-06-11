@@ -19,6 +19,9 @@
   "dependencies": {
     "@trustwallet/cli": "^0.18.0"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
