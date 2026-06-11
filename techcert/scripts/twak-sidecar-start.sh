@@ -16,11 +16,13 @@ fi
 : "${TWAK_HMAC_SECRET:?Set TWAK_HMAC_SECRET (same value as TWAK_API_KEY on Vercel)}"
 : "${TWAK_WALLET_PASSWORD:?Set TWAK_WALLET_PASSWORD for autonomous agent wallet signing}"
 
-PORT="${TWAK_REST_PORT:-3001}"
+# Railway injects PORT — must listen on that port for public networking (not hardcoded 3001).
+PORT="${PORT:-${TWAK_REST_PORT:-3001}}"
 HOST="${TWAK_REST_HOST:-0.0.0.0}"
 
 echo "Starting TWAK REST sidecar on ${HOST}:${PORT}"
-echo "Point Vercel TWAK_API_URL to this host's public URL"
+echo "Point Vercel TWAK_API_URL to this host's public URL (no /actions suffix)"
+echo "Railway PORT=${PORT}"
 
 exec npx @trustwallet/cli serve --rest \
   --port "$PORT" \

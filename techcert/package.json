@@ -16,6 +16,9 @@
     "configure:google": "node scripts/configure-google-auth.js",
     "check:google": "node scripts/check-google-auth.js"
   },
+  "dependencies": {
+    "@trustwallet/cli": "^0.18.0"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
