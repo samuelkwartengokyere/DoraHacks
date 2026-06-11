@@ -11,6 +11,8 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "build:frontend": "npm run build --prefix frontend",
     "check:live": "node scripts/check-live.js",
+    "twak:sidecar": "bash scripts/twak-sidecar-start.sh",
+    "twak:wallet": "bash -c 'set -a && source <(grep -E \"^TWAK_\" backend/.env | sed \"s/#.*//\") && set +a && npx @trustwallet/cli wallet \"$@\"' --",
     "configure:google": "node scripts/configure-google-auth.js",
     "check:google": "node scripts/check-google-auth.js"
   },

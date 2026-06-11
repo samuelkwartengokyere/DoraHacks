@@ -3,6 +3,16 @@
 # Deploy this on Railway, Fly.io, or a VPS — NOT on Vercel serverless.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/../backend/.env"
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source <(grep -E '^(TWAK_|TWAK_REST_)' "$ENV_FILE" | sed 's/#.*//')
+  set +a
+fi
+
 : "${TWAK_HMAC_SECRET:?Set TWAK_HMAC_SECRET (same value as TWAK_API_KEY on Vercel)}"
 : "${TWAK_WALLET_PASSWORD:?Set TWAK_WALLET_PASSWORD for autonomous agent wallet signing}"
 
