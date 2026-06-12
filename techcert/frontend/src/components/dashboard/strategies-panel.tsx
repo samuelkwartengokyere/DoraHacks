@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Bell, Download, LineChart as LineChartIcon, Play, Square } from "lucide-react";
 import { api, type StrategyRun, type StrategySchedule, type TradingSignal } from "@/lib/api";
+import { exportTrack2Bundle, exportTrack2Json, exportTrack2Writeup } from "@/lib/track2-export";
 import { EligibleTokenSelect } from "@/components/dashboard/eligible-token-select";
 import { SignalDurationPanel } from "@/components/dashboard/signal-duration-panel";
 
@@ -32,6 +33,7 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
   const [initialUsd, setInitialUsd] = useState("1000");
   const [symbol, setSymbol] = useState("BNB");
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [exportMode, setExportMode] = useState<"json" | "writeup" | "bundle" | null>(null);
 
   const isAutomated = Boolean(schedule?.isAutomated);
   const pollSeconds = schedule?.signalPollSeconds ?? 30;
@@ -108,25 +110,29 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
     }
   }
 
-  async function handleExport(runId: string) {
+  async function handleExport(
+    runId: string,
+    mode: "json" | "writeup" | "bundle" = "json",
+  ) {
     setExportingId(runId);
+    setExportMode(mode);
     setError("");
     try {
-      const result = await api.exportTrack2Submission(runId);
-      const blob = new Blob([JSON.stringify(result.submission, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `signalforge-track2-${runId}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setMessage("Track 2 DoraHacks JSON downloaded.");
+      if (mode === "writeup") {
+        await exportTrack2Writeup(runId);
+        setMessage("Track 2 strategy write-up downloaded.");
+      } else if (mode === "bundle") {
+        await exportTrack2Bundle(runId);
+        setMessage("Track 2 JSON + write-up downloaded for DoraHacks.");
+      } else {
+        await exportTrack2Json(runId);
+        setMessage("Track 2 DoraHacks JSON downloaded.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExportingId(null);
+      setExportMode(null);
     }
   }
 
@@ -269,16 +275,43 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
               </p>
             )}
             {latestBacktest?._id && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                disabled={exportingId === latestBacktest._id}
-                onClick={() => handleExport(latestBacktest._id)}
-              >
-                <Download className="h-4 w-4" />
-                {exportingId === latestBacktest._id ? "Exporting..." : "Export DoraHacks JSON"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={exportingId === latestBacktest._id}
+                  onClick={() => handleExport(latestBacktest._id, "json")}
+                >
+                  <Download className="h-4 w-4" />
+                  {exportingId === latestBacktest._id && exportMode === "json"
+                    ? "Exporting..."
+                    : "Export JSON"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={exportingId === latestBacktest._id}
+                  onClick={() => handleExport(latestBacktest._id, "writeup")}
+                >
+                  <Download className="h-4 w-4" />
+                  {exportingId === latestBacktest._id && exportMode === "writeup"
+                    ? "Exporting..."
+                    : "Export Write-up"}
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-2 bg-amber-500 hover:bg-amber-600"
+                  disabled={exportingId === latestBacktest._id}
+                  onClick={() => handleExport(latestBacktest._id, "bundle")}
+                >
+                  <Download className="h-4 w-4" />
+                  {exportingId === latestBacktest._id && exportMode === "bundle"
+                    ? "Exporting..."
+                    : "Download Both"}
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

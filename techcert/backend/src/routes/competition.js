@@ -3,6 +3,7 @@ const auth = require("../middleware/auth");
 const Agent = require("../models/Agent");
 const StrategyRun = require("../models/StrategyRun");
 const competitionService = require("../services/competitionService");
+const track2SubmissionService = require("../services/track2SubmissionService");
 const { ELIGIBLE_SYMBOLS } = require("../config/competitionTokens");
 
 const router = express.Router();
@@ -10,7 +11,9 @@ const router = express.Router();
 router.get("/status", auth, async (req, res) => {
   try {
     const agent = await Agent.findOne({ ownerId: req.admin.id }).sort({ createdAt: -1 });
-    const status = await competitionService.getDualTrackStatus(agent);
+    const status = await competitionService.getDualTrackStatus(agent, {
+      ownerId: req.admin.id,
+    });
     res.json({ success: true, ...status });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -45,22 +48,7 @@ router.get("/track2/export/:runId", auth, async (req, res) => {
       return res.status(404).json({ success: false, message: "Strategy run not found" });
     }
 
-    const submission = {
-      track: "strategy-skills",
-      hackathon: "BNB Hack: AI Trading Agent Edition",
-      skill: run.skillOutput,
-      metadata: {
-        name: run.name,
-        symbol: run.symbol,
-        strategyType: run.strategyType,
-        pnlPercent: run.pnlPercent,
-        tradeCount: run.tradeCount,
-        generatedAt: run.createdAt,
-        dorahacksUrl: competitionService.DORAHACKS_URL,
-      },
-      submissionNotes:
-        "Submit this JSON plus a strategy explanation on DoraHacks Track 2. No on-chain registration required.",
-    };
+    const submission = track2SubmissionService.buildSubmissionPackage(run);
 
     res.json({ success: true, submission });
   } catch (error) {

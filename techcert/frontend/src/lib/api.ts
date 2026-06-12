@@ -165,7 +165,14 @@ export interface CompetitionStatus {
 
 export interface Track2Export {
   success: boolean;
-  submission: Record<string, unknown>;
+  submission: {
+    track: string;
+    hackathon: string;
+    skill: Record<string, unknown>;
+    strategyExplanation: string;
+    metadata: Record<string, unknown>;
+    submissionNotes: string;
+  };
 }
 
 export interface EvaluationConfig {

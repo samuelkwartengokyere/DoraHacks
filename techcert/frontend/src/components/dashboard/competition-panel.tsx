@@ -14,6 +14,7 @@ import {
   Download,
 } from "lucide-react";
 import { api, type CompetitionStatus, type StrategyRun } from "@/lib/api";
+import { exportTrack2Bundle, exportTrack2Json, exportTrack2Writeup } from "@/lib/track2-export";
 
 interface CompetitionPanelProps {
   strategyRuns: StrategyRun[];
@@ -68,6 +69,7 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [exportMode, setExportMode] = useState<"json" | "writeup" | "bundle" | null>(null);
 
   const load = useCallback(async (options?: { clearFeedback?: boolean }) => {
     setLoading(true);
@@ -112,31 +114,36 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
     }
   }
 
-  async function handleExport(runId: string) {
+  async function handleExport(
+    runId: string,
+    mode: "json" | "writeup" | "bundle" = "json",
+  ) {
     setExportingId(runId);
+    setExportMode(mode);
     setError("");
     try {
-      const result = await api.exportTrack2Submission(runId);
-      const blob = new Blob([JSON.stringify(result.submission, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `signalforge-track2-${runId}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setMessage("Track 2 skill JSON downloaded — attach to your DoraHacks submission.");
+      if (mode === "writeup") {
+        await exportTrack2Writeup(runId);
+        setMessage("Track 2 strategy write-up downloaded — paste into your DoraHacks BUIDL.");
+      } else if (mode === "bundle") {
+        await exportTrack2Bundle(runId);
+        setMessage("Track 2 JSON + write-up downloaded — attach both to your DoraHacks submission.");
+      } else {
+        await exportTrack2Json(runId);
+        setMessage("Track 2 skill JSON downloaded — attach to your DoraHacks submission.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExportingId(null);
+      setExportMode(null);
     }
   }
 
   const track1 = status?.track1;
   const track2 = status?.track2;
-  const latestRun = strategyRuns[0];
+  const latestRun =
+    strategyRuns.find((r) => r.skillOutput?.backtest?.chartSeries?.length) ?? strategyRuns[0];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -244,20 +251,49 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
                   {latestRun.symbol} · PnL {latestRun.pnlPercent?.toFixed(2)}% ·{" "}
                   {latestRun.tradeCount} trades
                 </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-2 gap-2"
-                  disabled={exportingId === latestRun._id}
-                  onClick={() => handleExport(latestRun._id)}
-                >
-                  {exportingId === latestRun._id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  Export DoraHacks JSON
-                </Button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={exportingId === latestRun._id}
+                    onClick={() => handleExport(latestRun._id, "json")}
+                  >
+                    {exportingId === latestRun._id && exportMode === "json" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    Export JSON
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={exportingId === latestRun._id}
+                    onClick={() => handleExport(latestRun._id, "writeup")}
+                  >
+                    {exportingId === latestRun._id && exportMode === "writeup" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    Export Write-up
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-amber-500 hover:bg-amber-600"
+                    disabled={exportingId === latestRun._id}
+                    onClick={() => handleExport(latestRun._id, "bundle")}
+                  >
+                    {exportingId === latestRun._id && exportMode === "bundle" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    Download Both
+                  </Button>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-slate-500">Run a strategy skill first to generate export JSON.</p>

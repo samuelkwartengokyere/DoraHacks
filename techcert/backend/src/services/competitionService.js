@@ -159,13 +159,13 @@ async function getTrack1Readiness(agent) {
   };
 }
 
-function getTrack2Readiness() {
+function getTrack2Readiness({ hasBacktestRun = false } = {}) {
   const checklist = [
     {
       id: "skill_spec",
       label: "Backtestable strategy skill spec (JSON export)",
-      done: true,
-      action: "Run CMC Strategy Skill → export via GET /api/strategies/runs/:id/export",
+      done: hasBacktestRun,
+      action: "Dashboard → Strategies → Run backtest once, then export JSON",
     },
     {
       id: "cmc_hub",
@@ -196,12 +196,22 @@ function getTrack2Readiness() {
   };
 }
 
-async function getDualTrackStatus(agent = null) {
-  const [track1] = await Promise.all([getTrack1Readiness(agent)]);
+async function getDualTrackStatus(agent = null, { ownerId = null } = {}) {
+  const StrategyRun = require("../models/StrategyRun");
+
+  const [track1, backtestRunCount] = await Promise.all([
+    getTrack1Readiness(agent),
+    ownerId
+      ? StrategyRun.countDocuments({
+          ownerId,
+          "skillOutput.backtest.chartSeries.0": { $exists: true },
+        })
+      : Promise.resolve(0),
+  ]);
 
   return {
     track1,
-    track2: getTrack2Readiness(),
+    track2: getTrack2Readiness({ hasBacktestRun: backtestRunCount > 0 }),
     specialPrizes: [
       { name: "Best Use of Trust Wallet Agent Kit", track: "track1", amountUsd: 2000 },
       { name: "Best Use of Agent Hub", track: "both", amountUsd: 2000 },
