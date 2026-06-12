@@ -31,7 +31,7 @@ if [[ -z "${TWAK_WALLET_PASSWORD:-}" ]]; then
   exit 1
 fi
 
-PORT="${PORT:-${TWAK_REST_PORT:-8080}}"
+PORT="${PORT:-${TWAK_REST_PORT:-3001}}"
 HOST="${TWAK_REST_HOST:-0.0.0.0}"
 
 export TWAK_ACCESS_ID="${TWAK_ACCESS_ID:-}"

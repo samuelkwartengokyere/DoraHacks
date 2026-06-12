@@ -32,10 +32,22 @@ async function tryTwakRegister() {
       raw: result.raw,
     };
   } catch (error) {
+    const status = error.response?.status;
+    const twakMessage =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message;
+
     return {
       ok: false,
-      message: error.response?.data?.message || error.message,
-      hint: "Ensure twak serve --rest is running with TWAK_WALLET_PASSWORD and funded BSC wallet",
+      message:
+        status === 401
+          ? `TWAK authentication failed (401) — ${twakMessage}. TWAK_API_KEY on the backend must exactly match TWAK_HMAC_SECRET on the twak serve --rest host.`
+          : twakMessage,
+      hint:
+        status === 401
+          ? "Restart the sidecar with the same TWAK_HMAC_SECRET as TWAK_API_KEY, or update Vercel/Railway env vars so both values match"
+          : "Ensure twak serve --rest is running with TWAK_WALLET_PASSWORD and a funded BSC wallet",
     };
   }
 }
