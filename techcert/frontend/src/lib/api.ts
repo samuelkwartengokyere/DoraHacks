@@ -602,6 +602,22 @@ class ApiClient {
     );
   }
 
+  async deleteStrategyRuns(ids: string[]) {
+    return this.request<{ success: boolean; deletedCount: number }>("/strategies", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async clearStrategyRuns() {
+    return this.request<{ success: boolean; deletedCount: number }>("/strategies", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+  }
+
   async startStrategyAutomation(payload: {
     symbol?: string;
     name?: string;

@@ -19,6 +19,22 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
+router.delete("/", auth, async (req, res) => {
+  try {
+    const { ids } = req.body || {};
+    const filter = { ownerId: req.admin.id };
+
+    if (Array.isArray(ids) && ids.length > 0) {
+      filter._id = { $in: ids };
+    }
+
+    const result = await StrategyRun.deleteMany(filter);
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
 router.post("/backtest", auth, async (req, res) => {
   try {
     const {

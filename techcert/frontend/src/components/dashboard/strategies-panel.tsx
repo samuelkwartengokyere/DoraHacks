@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Download, LineChart as LineChartIcon, Play, Square } from "lucide-react";
+import { Bell, Download, LineChart as LineChartIcon, Play, Square, Trash2 } from "lucide-react";
 import { api, type StrategyRun, type StrategySchedule, type TradingSignal } from "@/lib/api";
 import { exportTrack2Bundle, exportTrack2Json, exportTrack2Writeup } from "@/lib/track2-export";
 import { EligibleTokenSelect } from "@/components/dashboard/eligible-token-select";
@@ -34,6 +34,7 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
   const [symbol, setSymbol] = useState("BNB");
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [exportMode, setExportMode] = useState<"json" | "writeup" | "bundle" | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
 
   const isAutomated = Boolean(schedule?.isAutomated);
   const pollSeconds = schedule?.signalPollSeconds ?? 30;
@@ -133,6 +134,30 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
     } finally {
       setExportingId(null);
       setExportMode(null);
+    }
+  }
+
+  async function handleClearHistory() {
+    if (runs.length === 0) return;
+    if (
+      !window.confirm(
+        `Delete all ${runs.length} strategy run${runs.length === 1 ? "" : "s"}? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setClearingHistory(true);
+    setError("");
+    setMessage("");
+    try {
+      await api.clearStrategyRuns();
+      setMessage("Run history cleared.");
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear run history");
+    } finally {
+      setClearingHistory(false);
     }
   }
 
@@ -328,11 +353,25 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Run History</CardTitle>
-          <CardDescription>
-            Signal snapshots on action change plus scheduled backtest results
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Run History</CardTitle>
+            <CardDescription>
+              Signal snapshots on action change plus scheduled backtest results
+            </CardDescription>
+          </div>
+          {runs.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={clearingHistory || loading}
+              onClick={() => void handleClearHistory()}
+              className="gap-2 shrink-0"
+            >
+              <Trash2 className="h-4 w-4" />
+              {clearingHistory ? "Clearing..." : "Clear history"}
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {runs.length === 0 ? (
