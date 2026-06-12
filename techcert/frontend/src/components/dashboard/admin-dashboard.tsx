@@ -33,6 +33,10 @@ import {
   snapshotRunIds,
   snapshotTradeIds,
 } from "@/lib/signal-watcher";
+import {
+  readDashboardTabFromLocation,
+  writeDashboardTabToLocation,
+} from "@/lib/dashboard-tab";
 import { api, type Agent, type Trade, type StrategyRun, type StrategySchedule, type TradingSignal, type EvaluationConfig, type LeaderboardEntry } from "@/lib/api";
 
 const REALTIME_POLL_MS = 5_000;
@@ -49,9 +53,23 @@ export function AdminDashboard() {
   const [liveMarketSignal, setLiveMarketSignal] = useState<TradingSignal | null>(null);
   const [highlightTradeId, setHighlightTradeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [activeTab, setActiveTabState] = useState<DashboardTab>(() => readDashboardTabFromLocation());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dataReady, setDataReady] = useState(false);
+
+  const setActiveTab = useCallback((tab: DashboardTab) => {
+    setActiveTabState(tab);
+    writeDashboardTabToLocation(tab);
+  }, []);
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      setActiveTabState(readDashboardTabFromLocation());
+    };
+
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
 
   const { toasts, pushToast, dismissToast } = useSignalToasts();
   const tradeIdsRef = useRef<Set<string>>(new Set());
