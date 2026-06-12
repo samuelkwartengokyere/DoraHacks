@@ -10,15 +10,65 @@ const PLACEHOLDERS = new Set(["", "your_twak_api_key", "your_twak_api_url"]);
  */
 class TwakService {
   getApiKey() {
-    return (
-      process.env.TWAK_API_KEY?.trim() ||
-      process.env.TWAK_HMAC_SECRET?.trim() ||
-      ""
-    );
+    const apiKey = process.env.TWAK_API_KEY?.trim() || "";
+    const hmacSecret = process.env.TWAK_HMAC_SECRET?.trim() || "";
+
+    // Railway sidecar validates Bearer against TWAK_HMAC_SECRET — prefer it when both differ.
+    if (apiKey && hmacSecret && apiKey !== hmacSecret) {
+      return hmacSecret;
+    }
+
+    return hmacSecret || apiKey || "";
   }
 
   getBaseUrl() {
-    return process.env.TWAK_API_URL?.trim().replace(/\/$/, "") || "";
+    const raw = process.env.TWAK_API_URL?.trim() || "";
+    return raw.replace(/\/+$/, "").replace(/\/actions$/i, "");
+  }
+
+  getConfigDiagnostics() {
+    const apiKey = process.env.TWAK_API_KEY?.trim() || "";
+    const hmacSecret = process.env.TWAK_HMAC_SECRET?.trim() || "";
+    const baseUrl = this.getBaseUrl();
+    let host = null;
+    let urlIssue = null;
+
+    try {
+      if (baseUrl) {
+        const parsed = new URL(baseUrl);
+        host = parsed.host;
+        if (/^localhost$|^127\.0\.0\.1$/i.test(parsed.hostname)) {
+          urlIssue = "TWAK_API_URL points to localhost — Vercel cannot reach a local sidecar";
+        }
+        if (/trustwallet\.com$/i.test(parsed.hostname)) {
+          urlIssue =
+            "TWAK_API_URL points to Trust Wallet cloud API — use your Railway twak serve --rest URL instead";
+        }
+      }
+    } catch {
+      urlIssue = "TWAK_API_URL is not a valid URL";
+    }
+
+    return {
+      host,
+      urlIssue,
+      authKeySource:
+        apiKey && hmacSecret
+          ? apiKey === hmacSecret
+            ? "TWAK_HMAC_SECRET+TWAK_API_KEY (match)"
+            : "TWAK_HMAC_SECRET (TWAK_API_KEY differs — using HMAC)"
+          : hmacSecret
+            ? "TWAK_HMAC_SECRET"
+            : apiKey
+              ? "TWAK_API_KEY"
+              : "none",
+      keysMismatch: Boolean(apiKey && hmacSecret && apiKey !== hmacSecret),
+    };
+  }
+
+  isAuthError(error) {
+    const status = Number(error.response?.status);
+    return status === 401 || /401/.test(error.message || "");
   }
 
   isConfigured() {
@@ -246,11 +296,31 @@ class TwakService {
         message: `TWAK sidecar reachable (${names.length} actions)`,
       };
     } catch (error) {
+      const diagnostics = this.getConfigDiagnostics();
+      const twakMessage =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message;
+
+      let hint = "Deploy twak serve --rest on Railway/Fly and set TWAK_API_URL to its public URL";
+      if (diagnostics.urlIssue) {
+        hint = diagnostics.urlIssue;
+      } else if (this.isAuthError(error)) {
+        hint =
+          "TWAK_API_KEY / TWAK_HMAC_SECRET on Vercel must exactly match TWAK_HMAC_SECRET on Railway. Redeploy Vercel after updating env vars.";
+      } else if (diagnostics.keysMismatch) {
+        hint =
+          "TWAK_API_KEY and TWAK_HMAC_SECRET on Vercel differ — remove TWAK_API_KEY or set both to the same HMAC secret.";
+      }
+
       return {
         ok: false,
         mode: this.getMode(),
-        message: error.response?.data?.message || error.message,
-        hint: "Deploy twak serve --rest on Railway/Fly and set TWAK_API_URL to its public URL",
+        message: this.isAuthError(error)
+          ? `TWAK authentication failed (401) — ${twakMessage}`
+          : twakMessage,
+        hint,
+        diagnostics,
       };
     }
   }

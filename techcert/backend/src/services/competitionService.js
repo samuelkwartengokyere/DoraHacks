@@ -32,22 +32,31 @@ async function tryTwakRegister() {
       raw: result.raw,
     };
   } catch (error) {
-    const status = error.response?.status;
+    const diagnostics = twakService.getConfigDiagnostics();
     const twakMessage =
       error.response?.data?.error ||
       error.response?.data?.message ||
       error.message;
+    const authFailed = twakService.isAuthError(error);
+
+    let hint = "Ensure twak serve --rest is running with TWAK_WALLET_PASSWORD and a funded BSC wallet";
+    if (diagnostics.urlIssue) {
+      hint = diagnostics.urlIssue;
+    } else if (authFailed) {
+      hint =
+        "TWAK_API_KEY / TWAK_HMAC_SECRET on Vercel must exactly match TWAK_HMAC_SECRET on Railway. Redeploy Vercel after updating env vars.";
+    } else if (diagnostics.keysMismatch) {
+      hint =
+        "TWAK_API_KEY and TWAK_HMAC_SECRET on Vercel differ — remove TWAK_API_KEY or set both to the same HMAC secret.";
+    }
 
     return {
       ok: false,
-      message:
-        status === 401
-          ? `TWAK authentication failed (401) — ${twakMessage}. TWAK_API_KEY on the backend must exactly match TWAK_HMAC_SECRET on the twak serve --rest host.`
-          : twakMessage,
-      hint:
-        status === 401
-          ? "Restart the sidecar with the same TWAK_HMAC_SECRET as TWAK_API_KEY, or update Vercel/Railway env vars so both values match"
-          : "Ensure twak serve --rest is running with TWAK_WALLET_PASSWORD and a funded BSC wallet",
+      message: authFailed
+        ? `TWAK authentication failed (401) — ${twakMessage}. Bearer token must match TWAK_HMAC_SECRET on the Railway sidecar.`
+        : twakMessage,
+      hint,
+      diagnostics,
     };
   }
 }

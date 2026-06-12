@@ -137,6 +137,7 @@ async function testTwakConnection() {
 
   const health = await twakService.healthCheck();
   const chain = getChainConfig();
+  const diagnostics = health.diagnostics || twakService.getConfigDiagnostics();
 
   return {
     ok: health.ok,
@@ -147,6 +148,7 @@ async function testTwakConnection() {
       ? `${health.message} · ${chain.networkName} · ${twakService.getMode()} mode`
       : health.message,
     hint: health.hint,
+    diagnostics,
   };
 }
 
