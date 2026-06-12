@@ -69,9 +69,11 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
   const [error, setError] = useState("");
   const [exportingId, setExportingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { clearFeedback?: boolean }) => {
     setLoading(true);
-    setError("");
+    if (options?.clearFeedback !== false) {
+      setError("");
+    }
     try {
       const data = await api.getCompetitionStatus();
       setStatus(data);
@@ -92,6 +94,7 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
     setError("");
     try {
       const result = await api.registerCompetitionOnChain();
+      await load({ clearFeedback: false });
       if (result.ok) {
         setMessage(
           result.txHash
@@ -99,9 +102,9 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
             : result.message || "Registration submitted via TWAK sidecar",
         );
       } else {
-        setError(result.message || result.hint || "Registration failed");
+        const detail = [result.message, result.hint].filter(Boolean).join(" — ");
+        setError(detail || "Registration failed");
       }
-      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -153,6 +156,11 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
         </Button>
       </div>
 
+      {registering && (
+        <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
+          Submitting on-chain registration via TWAK… this can take up to a minute.
+        </p>
+      )}
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
           {error}
