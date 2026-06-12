@@ -150,7 +150,7 @@ export function CompetitionPanel({ strategyRuns, onNavigate }: CompetitionPanelP
             Track 1 live agent (Jun 22–28) + Track 2 strategy skill (submit by Jun 21)
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
+        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="gap-2">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
