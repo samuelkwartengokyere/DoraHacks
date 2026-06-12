@@ -38,16 +38,31 @@ async function tryTwakRegister() {
       error.response?.data?.message ||
       error.message;
     const authFailed = twakService.isAuthError(error);
+    const gasFailed = /insufficient funds|tx cost|overshot|gas required/i.test(twakMessage);
 
     let hint = "Ensure twak serve --rest is running with TWAK_WALLET_PASSWORD and a funded BSC wallet";
-    if (diagnostics.urlIssue) {
+    if (gasFailed) {
+      let wallet = null;
+      try {
+        const status = await twakService.competitionStatus();
+        wallet = status?.participant || status?.walletAddress || status?.address || null;
+      } catch {
+        // competition_status may still work when register fails for gas
+      }
+
+      const txCostWei = twakMessage.match(/tx cost (\d+)/i)?.[1];
+      const gasEstimate = txCostWei
+        ? `~${(Number(txCostWei) / 1e18).toFixed(6)} BNB`
+        : "~0.001 BNB";
+
+      hint = wallet
+        ? `Send ${gasEstimate} BNB on BSC mainnet to the TWAK wallet ${wallet}, wait for confirmation, then retry.`
+        : `Fund the TWAK agent wallet on BSC mainnet with ${gasEstimate} for gas. Find the address in Railway sidecar startup logs.`;
+    } else if (diagnostics.urlIssue) {
       hint = diagnostics.urlIssue;
     } else if (authFailed) {
       hint =
         "TWAK_API_KEY / TWAK_HMAC_SECRET on Vercel must exactly match TWAK_HMAC_SECRET on Railway. Redeploy Vercel after updating env vars.";
-    } else if (diagnostics.keysMismatch) {
-      hint =
-        "TWAK_API_KEY and TWAK_HMAC_SECRET on Vercel differ — remove TWAK_API_KEY or set both to the same HMAC secret.";
     }
 
     return {
