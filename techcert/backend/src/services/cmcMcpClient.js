@@ -5,6 +5,10 @@ const DEFAULT_MCP_URL = "https://mcp.coinmarketcap.com/mcp";
 const X402_MCP_URL = "https://mcp.coinmarketcap.com/x402/mcp";
 
 class CmcMcpClient {
+  constructor() {
+    this.symbolIdCache = new Map();
+  }
+
   isConfigured() {
     if (this.useX402()) return twakService.isConfigured();
     const key = process.env.CMC_MCP_API_KEY?.trim() || process.env.CMC_PRO_API_KEY?.trim();
@@ -25,6 +29,16 @@ class CmcMcpClient {
     return process.env.CMC_MCP_API_KEY?.trim() || process.env.CMC_PRO_API_KEY?.trim();
   }
 
+  getRequestHeaders() {
+    const key = this.getApiKey();
+    return {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      "X-CMC-MCP-API-KEY": key,
+      "X-CMC_PRO_API_KEY": key,
+    };
+  }
+
   async callTool(toolName, args = {}) {
     if (this.useX402()) {
       return this.callToolViaTwakX402(toolName, args);
@@ -39,11 +53,7 @@ class CmcMcpClient {
         params: { name: toolName, arguments: args },
       },
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-CMC-MCP-API-KEY": this.getApiKey(),
-          "X-CMC_PRO_API_KEY": this.getApiKey(),
-        },
+        headers: this.getRequestHeaders(),
         timeout: 25000,
       }
     );
@@ -94,39 +104,121 @@ class CmcMcpClient {
     return result;
   }
 
+  parsePercentString(value) {
+    if (value == null) return null;
+    if (typeof value === "number") return value;
+    const cleaned = String(value).replace(/[%+,]/g, "").trim();
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  parseCompactUsd(value) {
+    if (value == null) return null;
+    if (typeof value === "number") return value;
+    const raw = String(value).trim().replace(/[$,]/g, "");
+    const match = raw.match(/^([\d.]+)\s*([KMBT])?$/i);
+    if (!match) {
+      const direct = Number(raw);
+      return Number.isFinite(direct) ? direct : null;
+    }
+    const amount = Number(match[1]);
+    const suffix = (match[2] || "").toUpperCase();
+    const multipliers = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
+    return amount * (multipliers[suffix] || 1);
+  }
+
+  async searchCryptos(query, limit = 3) {
+    return this.callTool("search_cryptos", { query, limit });
+  }
+
+  async resolveCryptoId(symbol) {
+    const upper = symbol.toUpperCase();
+    if (this.symbolIdCache.has(upper)) {
+      return this.symbolIdCache.get(upper);
+    }
+
+    const results = await this.searchCryptos(upper, 5);
+    const rows = Array.isArray(results) ? results : results?.data || [];
+    const match =
+      rows.find((row) => row.symbol?.toUpperCase() === upper) ||
+      rows.find((row) => row.slug?.toLowerCase() === upper.toLowerCase()) ||
+      rows[0];
+
+    if (!match?.id) {
+      throw new Error(`No MCP search result for ${upper}`);
+    }
+
+    const resolved = String(match.id);
+    this.symbolIdCache.set(upper, resolved);
+    return resolved;
+  }
+
   async getQuote(symbol) {
-    return this.callTool("get_crypto_quotes_latest", {
-      symbol: symbol.toUpperCase(),
-      convert: "USD",
-    });
+    const id = await this.resolveCryptoId(symbol);
+    return this.callTool("get_crypto_quotes_latest", { id });
   }
 
   async getGlobalMetrics() {
-    return this.callTool("get_global_metrics_latest", { convert: "USD" });
+    return this.callTool("get_global_metrics_latest", {});
+  }
+
+  async getTechnicalAnalysis(symbol) {
+    const id = await this.resolveCryptoId(symbol);
+    return this.callTool("get_crypto_technical_analysis", { id });
   }
 
   normalizeQuote(symbol, data) {
     const upper = symbol.toUpperCase();
-    const entry = data?.data?.[upper] || data?.[upper] || data?.quote?.[upper];
+    const entry =
+      data?.data?.[upper] ||
+      data?.[upper] ||
+      data?.quote?.[upper] ||
+      data?.data?.[0] ||
+      data?.[0] ||
+      data?.data?.[String(Object.keys(data?.data || data || {})[0])];
+
     if (!entry) {
       throw new Error(`No MCP quote for ${upper}`);
     }
-    const quote = entry.quote?.USD || entry.quote?.usd || {};
+
+    const quote = entry.quote?.USD || entry.quote?.usd || entry;
     return {
       mock: false,
-      symbol: upper,
+      symbol: entry.symbol?.toUpperCase?.() || upper,
       name: entry.name || upper,
+      cmcId: entry.id != null ? String(entry.id) : null,
       priceUsd: quote.price ?? entry.price,
-      percentChange1h: quote.percent_change_1h ?? entry.percent_change_1h,
-      percentChange24h: quote.percent_change_24h ?? entry.percent_change_24h,
-      percentChange7d: quote.percent_change_7d ?? entry.percent_change_7d,
-      volume24hUsd: quote.volume_24h ?? entry.volume_24h,
-      marketCapUsd: quote.market_cap ?? entry.market_cap,
-      lastUpdated: quote.last_updated || new Date().toISOString(),
+      percentChange1h: quote.percent_change_1h ?? quote.percentChange1h ?? entry.percent_change_1h,
+      percentChange24h: quote.percent_change_24h ?? quote.percentChange24h ?? entry.percent_change_24h,
+      percentChange7d: quote.percent_change_7d ?? quote.percentChange7d ?? entry.percent_change_7d,
+      volume24hUsd: quote.volume_24h ?? quote.volume24h ?? entry.volume_24h,
+      marketCapUsd: quote.market_cap ?? quote.marketCap ?? entry.market_cap,
+      lastUpdated: quote.last_updated || entry.last_updated || new Date().toISOString(),
     };
   }
 
   normalizeGlobalMetrics(data) {
+    if (data?.market_size || data?.sentiment) {
+      const marketCapCurrent = data.market_size?.total_crypto_market_cap_usd?.current;
+      const volumeCurrent = data.liquidity?.volume24h?.total?.current;
+      const marketCapChange24h = this.parsePercentString(
+        data.market_size?.total_crypto_market_cap_usd?.percent_change?.["24h"]
+      );
+      const fearGreed = data.sentiment?.fear_greed?.current;
+
+      return {
+        mock: false,
+        btcDominance: this.parsePercentString(data.dominance?.btc?.current),
+        totalMarketCapUsd: this.parseCompactUsd(marketCapCurrent),
+        totalVolume24hUsd: this.parseCompactUsd(volumeCurrent),
+        marketCapChange24h: marketCapChange24h ?? 0,
+        fearGreedIndex: fearGreed?.index ?? null,
+        fearGreedLabel: fearGreed?.value ?? null,
+        altcoinSeasonIndex: data.sentiment?.altcoin_season?.current?.index ?? null,
+        source: "cmc-mcp-global-metrics",
+      };
+    }
+
     const root = data?.data ?? data;
     const quote = root?.quote?.USD || root?.quote?.usd || {};
     return {
@@ -139,6 +231,47 @@ class CmcMcpClient {
             quote.total_market_cap_yesterday) *
           100
         : 0,
+      fearGreedIndex: root?.fear_and_greed?.value ?? null,
+      fearGreedLabel: root?.fear_and_greed?.value_classification ?? null,
+      source: "cmc-mcp-global-metrics-legacy",
+    };
+  }
+
+  normalizeTechnicalAnalysis(data, symbol) {
+    const root = data?.data ?? data;
+    const moving = root?.moving_averages || {};
+    const macd = root?.macd || {};
+    const rsi = root?.rsi || {};
+
+    const toNumber = (value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    return {
+      mock: false,
+      symbol: symbol.toUpperCase(),
+      movingAverages: {
+        sma7: toNumber(moving.simple_moving_average_7_day),
+        sma30: toNumber(moving.simple_moving_average_30_day),
+        sma200: toNumber(moving.simple_moving_average_200_day),
+        ema7: toNumber(moving.exponential_moving_average_7_day),
+        ema30: toNumber(moving.exponential_moving_average_30_day),
+        ema200: toNumber(moving.exponential_moving_average_200_day),
+      },
+      macd: {
+        line: toNumber(macd.macdLine),
+        signal: toNumber(macd.signalLine),
+        histogram: toNumber(macd.histogram),
+      },
+      rsi: {
+        rsi7: toNumber(rsi.rsi7),
+        rsi14: toNumber(rsi.rsi14),
+        rsi21: toNumber(rsi.rsi21),
+      },
+      pivotPoint: toNumber(root?.pivotPoint),
+      fibonacci: root?.fibonacciLevels || null,
+      source: "cmc-mcp-technical-analysis",
     };
   }
 }

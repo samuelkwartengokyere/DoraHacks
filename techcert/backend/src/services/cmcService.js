@@ -1,5 +1,6 @@
 const axios = require("axios");
 const cmcMcpClient = require("./cmcMcpClient");
+const cmcIndicatorService = require("./cmcIndicatorService");
 const x402PaymentService = require("./x402PaymentService");
 const twakService = require("./twakService");
 
@@ -305,12 +306,26 @@ class CmcService {
     try {
       const strategyService = require("./strategyService");
       const maSignal = await strategyService.getMaCrossoverSignal(symbol);
-      const merged = this.mergeSignals(cmcSignal, maSignal);
+      let merged = this.mergeSignals(cmcSignal, maSignal);
+
+      const indicators = await cmcIndicatorService.fetchMcpIndicators(symbol, {
+        priceUsd: merged.metrics?.priceUsd,
+      });
+      merged = cmcIndicatorService.applyIndicatorsToSignal(merged, indicators);
+
       const duration = await strategyService.getSignalDuration(symbol, merged.action);
       return { ...merged, duration };
     } catch (error) {
       console.warn("MA crossover signal unavailable:", error.message);
-      return cmcSignal;
+      try {
+        const indicators = await cmcIndicatorService.fetchMcpIndicators(symbol, {
+          priceUsd: cmcSignal.metrics?.priceUsd,
+        });
+        return cmcIndicatorService.applyIndicatorsToSignal(cmcSignal, indicators);
+      } catch (indicatorError) {
+        console.warn("MCP indicators unavailable:", indicatorError.message);
+        return cmcSignal;
+      }
     }
   }
 

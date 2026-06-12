@@ -71,10 +71,24 @@ export interface TradingSignal {
   confidence: number;
   regime: string;
   reasons: string[];
-  metrics: Record<string, number>;
+  metrics: Record<string, number | null>;
   source: string;
   generatedAt: string;
   duration?: SignalDuration;
+  mcpIndicators?: {
+    technical?: {
+      rsi?: { rsi14?: number | null; rsi7?: number | null };
+      macd?: { histogram?: number | null; line?: number | null; signal?: number | null };
+      movingAverages?: { sma200?: number | null; ema30?: number | null };
+    };
+    globalSentiment?: {
+      fearGreedIndex?: number | null;
+      fearGreedLabel?: string | null;
+    };
+    indicatorScore?: number;
+    mock?: boolean;
+    source?: string;
+  };
 }
 
 export interface AgentEvaluation {
@@ -287,6 +301,19 @@ export interface StrategyRun {
     track: string;
     symbol?: string;
     cmcSignal: TradingSignal;
+    mcpIndicators?: {
+      technical?: {
+        rsi?: { rsi14?: number | null; rsi7?: number | null };
+        macd?: { histogram?: number | null; line?: number | null; signal?: number | null };
+        movingAverages?: { sma200?: number | null; ema30?: number | null };
+      };
+      globalSentiment?: {
+        fearGreedIndex?: number | null;
+        fearGreedLabel?: string | null;
+      };
+      mock?: boolean;
+      source?: string;
+    };
     recommendation: { action: string; confidence: number; rationale: string; backtestAligned: boolean };
     backtest: {
       pnlPercent: number;

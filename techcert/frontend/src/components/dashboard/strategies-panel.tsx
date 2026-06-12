@@ -244,6 +244,16 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
               <Badge variant="outline">
                 Confidence {(output.cmcSignal.confidence * 100).toFixed(0)}%
               </Badge>
+              {output.mcpIndicators?.globalSentiment?.fearGreedIndex != null && (
+                <Badge variant="outline">
+                  F&amp;G {output.mcpIndicators.globalSentiment.fearGreedIndex}
+                </Badge>
+              )}
+              {output.mcpIndicators?.technical?.rsi?.rsi14 != null && (
+                <Badge variant="outline">
+                  RSI {output.mcpIndicators.technical.rsi.rsi14.toFixed(1)}
+                </Badge>
+              )}
               <Badge variant={output.backtest.pnlPercent >= 0 ? "success" : "destructive"}>
                 Backtest {output.backtest.pnlPercent.toFixed(2)}%
               </Badge>
@@ -354,6 +364,37 @@ export function StrategiesPanel({ runs, schedule, onRefresh }: StrategiesPanelPr
   );
 }
 
+function McpIndicatorBadges({ signal }: { signal: TradingSignal }) {
+  const indicators = signal.mcpIndicators;
+  const rsi = indicators?.technical?.rsi?.rsi14 ?? signal.metrics?.rsi14;
+  const macd = indicators?.technical?.macd?.histogram ?? signal.metrics?.macdHistogram;
+  const fearGreed =
+    indicators?.globalSentiment?.fearGreedIndex ?? signal.metrics?.fearGreedIndex;
+  const fearLabel = indicators?.globalSentiment?.fearGreedLabel;
+
+  if (rsi == null && macd == null && fearGreed == null) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {rsi != null && (
+        <Badge variant="outline">RSI(14) {Number(rsi).toFixed(1)}</Badge>
+      )}
+      {macd != null && (
+        <Badge variant={Number(macd) >= 0 ? "success" : "destructive"}>
+          MACD hist {Number(macd).toFixed(2)}
+        </Badge>
+      )}
+      {fearGreed != null && (
+        <Badge variant="outline">
+          F&amp;G {Number(fearGreed).toFixed(0)}
+          {fearLabel ? ` · ${fearLabel}` : ""}
+        </Badge>
+      )}
+      {indicators?.mock && <Badge variant="outline">MCP mock</Badge>}
+    </div>
+  );
+}
+
 function LiveSignalCard({ signal, isAutomated }: { signal: TradingSignal; isAutomated: boolean }) {
   return (
     <Card className="border-amber-200/60 dark:border-amber-900/40">
@@ -383,6 +424,7 @@ function LiveSignalCard({ signal, isAutomated }: { signal: TradingSignal; isAuto
             ))}
           </ul>
         )}
+        <McpIndicatorBadges signal={signal} />
         {signal.duration && <SignalDurationPanel signal={signal} />}
       </CardContent>
     </Card>

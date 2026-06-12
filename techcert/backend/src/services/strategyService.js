@@ -480,9 +480,12 @@ class StrategyService {
     initialUsd = 1000,
     signal = null,
   } = {}) {
-    const [resolvedSignal, candles] = await Promise.all([
+    const cmcIndicatorService = require("./cmcIndicatorService");
+
+    const [resolvedSignal, candles, mcpIndicators] = await Promise.all([
       signal ? Promise.resolve(signal) : cmcService.getTradingSignal(symbol),
       this.fetchHourlyCloses(symbol, 168),
+      cmcIndicatorService.fetchMcpIndicators(symbol),
     ]);
 
     const backtest = this.backtestMaCrossover(candles, {
@@ -496,11 +499,28 @@ class StrategyService {
       track: "strategy-skills",
       symbol,
       pipeline: [
-        { step: "cmc-agent-hub", action: "fetch_quote_and_global_metrics", protocol: require("./cmcService").getDataSource?.() || "rest" },
+        {
+          step: "cmc-agent-hub",
+          action: "fetch_quote_and_global_metrics",
+          protocol: require("./cmcService").getDataSource?.() || "rest",
+        },
+        {
+          step: "cmc-agent-hub-mcp",
+          action: "get_crypto_technical_analysis",
+          tool: "get_crypto_technical_analysis",
+          result: mcpIndicators.technical,
+        },
+        {
+          step: "cmc-agent-hub-mcp",
+          action: "get_global_metrics_latest",
+          tool: "get_global_metrics_latest",
+          result: mcpIndicators.globalSentiment,
+        },
         { step: "signal-engine", action: "compute_regime_and_action", result: resolvedSignal },
         { step: "backtest", action: "ma_crossover_on_hourly_ohlcv", params: { fastPeriod, slowPeriod } },
       ],
       cmcSignal: resolvedSignal,
+      mcpIndicators,
       recommendation: {
         action: resolvedSignal.action,
         confidence: resolvedSignal.confidence,
@@ -515,7 +535,7 @@ class StrategyService {
       dorahacksSubmission: {
         track: "strategy-skills",
         signalLogic:
-          "CMC Agent Hub momentum score (1h/24h/7d, global regime, volume) merged with MA(9/21) crossover confirmation.",
+          "CMC Agent Hub momentum score (1h/24h/7d, global regime, volume) + MCP pre-computed RSI/MACD/SMA200 + Fear & Greed, merged with MA(9/21) crossover confirmation.",
         backtestSummary: {
           pnlPercent: backtest.pnlPercent,
           pnlUsd: backtest.pnlUsd,

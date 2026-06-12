@@ -171,7 +171,7 @@ function getTrack2Readiness({ hasBacktestRun = false } = {}) {
       id: "cmc_hub",
       label: "CMC Agent Hub integration (MCP / REST / x402)",
       done: cmcMcpClient.isConfigured() || cmcService.isConfigured(),
-      action: "Use MCP (CMC_DATA_SOURCE=mcp) or Pro API for live signals",
+      action: "Use MCP tools: get_crypto_technical_analysis (RSI/MACD) + get_global_metrics_latest (Fear & Greed)",
     },
     {
       id: "dorahacks_skill",

@@ -12,6 +12,31 @@ function formatPercent(value) {
   return `${Number(value).toFixed(2)}%`;
 }
 
+function formatMcpIndicatorSection(indicators) {
+  if (!indicators) {
+    return "_MCP indicators not captured in this run — re-run backtest to populate._";
+  }
+
+  const technical = indicators.technical || {};
+  const sentiment = indicators.globalSentiment || {};
+  const rsi = technical.rsi || {};
+  const macd = technical.macd || {};
+  const ma = technical.movingAverages || {};
+
+  return [
+    "| Indicator | Value |",
+    "| --- | --- |",
+    `| RSI(14) | ${rsi.rsi14 ?? "—"} |`,
+    `| RSI(7) | ${rsi.rsi7 ?? "—"} |`,
+    `| MACD histogram | ${macd.histogram ?? "—"} |`,
+    `| MACD line / signal | ${macd.line ?? "—"} / ${macd.signal ?? "—"} |`,
+    `| SMA200 | ${ma.sma200 ?? "—"} |`,
+    `| EMA30 | ${ma.ema30 ?? "—"} |`,
+    `| Fear & Greed | ${sentiment.fearGreedIndex ?? "—"} (${sentiment.fearGreedLabel || "—"}) |`,
+    `| MCP source | ${indicators.mock ? "mock fallback" : indicators.source || "cmc-agent-hub-mcp"} |`,
+  ].join("\n");
+}
+
 function buildStrategyExplanation(run) {
   const skill = run.skillOutput || {};
   const backtest = skill.backtest || {};
@@ -37,9 +62,15 @@ function buildStrategyExplanation(run) {
     "## Data Pipeline (CMC Agent Hub)",
     "",
     "1. **Market data** — Latest quote + global metrics via CMC Agent Hub (`" + dataSource + "` path).",
-    "2. **Signal engine** — Momentum score from 1h/24h/7d price action, global market cap regime, and volume confirmation.",
-    "3. **Technical confirmation** — MA(" + fastPeriod + "/" + slowPeriod + ") crossover on hourly OHLCV (Binance klines, 7-day window).",
-    "4. **Backtest** — Simulated round-trip trades with configurable fees and slippage; outputs P&L, win rate, and max drawdown.",
+    "2. **MCP technical indicators** — `get_crypto_technical_analysis` (RSI, MACD, SMA/EMA, pivot points).",
+    "3. **MCP global sentiment** — `get_global_metrics_latest` (Fear & Greed Index, dominance, liquidity).",
+    "4. **Signal engine** — Momentum score from price action + MCP indicator overlay + volume confirmation.",
+    "5. **Technical confirmation** — MA(" + fastPeriod + "/" + slowPeriod + ") crossover on hourly OHLCV (Binance klines, 7-day window).",
+    "6. **Backtest** — Simulated round-trip trades with configurable fees and slippage; outputs P&L, win rate, and max drawdown.",
+    "",
+    "## MCP Indicator Snapshot",
+    "",
+    formatMcpIndicatorSection(skill.mcpIndicators || signal.mcpIndicators),
     "",
     "## Signal Logic",
     "",
